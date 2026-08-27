@@ -55,12 +55,22 @@ async def upload_document(
     with open(file_path, "wb") as f:
         f.write(content)
 
+    # Extract page count immediately
+    page_count = 0
+    try:
+        import pymupdf
+        with pymupdf.open(file_path) as pdf_doc:
+            page_count = len(pdf_doc)
+    except Exception:
+        page_count = 0
+
     # Create DB record
     new_doc = Document(
         id=doc_id,
         filename=safe_filename,
         file_path=str(file_path),
         file_size=file_size,
+        page_count=page_count,
         status=DocumentStatus.UPLOADED,
     )
     db.add(new_doc)
@@ -68,12 +78,16 @@ async def upload_document(
     await db.refresh(new_doc)
 
     return DocumentUploadResponse(
+        id=doc_id,
         document_id=doc_id,
         filename=safe_filename,
         status=DocumentStatus.UPLOADED,
+        page_count=page_count,
+        file_size=file_size,
     )
 
 
+@router.get("", response_model=DocumentListResponse)
 @router.get("/", response_model=DocumentListResponse)
 async def list_documents(db: AsyncSession = Depends(get_db)):
     """List all uploaded documents."""
@@ -164,16 +178,16 @@ async def _process_document_background(document_id: str):
             await db.commit()
 
             metadata = pdf_processor.extract_metadata(file_path)
-            doc.page_count = metadata.get("page_count", 0)
-            total_pages = doc.page_count
+            doc.page_count = metadata.get("page_count", 0) or doc.page_count
+            total_pages = max(doc.page_count, 1)
             _processing_progress[document_id]["total_pages"] = total_pages
             await db.commit()
 
             # Extract text page by page
             page_texts = []
-            for page_num in range(total_pages):
+            for page_num in range(doc.page_count):
                 _processing_progress[document_id]["current_page"] = page_num + 1
-                _processing_progress[document_id]["progress"] = 10 + int(30 * (page_num + 1) / max(total_pages, 1))
+                _processing_progress[document_id]["progress"] = 10 + int(30 * (page_num + 1) / total_pages)
 
                 text = pdf_processor.extract_page_text(file_path, page_num)
                 quality = pdf_processor.assess_text_quality(text)
@@ -252,7 +266,7 @@ async def _process_document_background(document_id: str):
             await db.commit()
 
             chunk_texts = [c.text for c in chunks]
-            embeddings = embedding_service.encode(chunk_texts, show_progress=True)
+            embeddings = embedding_service.encode(chunk_texts, show_progress=False)
 
             # Stage: INDEXING
             _processing_progress[document_id]["stage"] = "INDEXING"

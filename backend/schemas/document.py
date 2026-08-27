@@ -3,9 +3,12 @@ from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 
 class DocumentUploadResponse(BaseModel):
+    id: str
     document_id: str
     filename: str
     status: str
+    page_count: Optional[int] = 0
+    file_size: Optional[int] = 0
 
     model_config = ConfigDict(from_attributes=True)
 

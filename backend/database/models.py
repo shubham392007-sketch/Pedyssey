@@ -13,8 +13,8 @@ class Document(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     filename: Mapped[str] = mapped_column(String, nullable=False)
     file_path: Mapped[str] = mapped_column(String, nullable=False)
-    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
-    page_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String, nullable=False, default="UPLOADED")
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
@@ -30,7 +30,7 @@ class Chunk(Base):
     page_start: Mapped[int] = mapped_column(Integer, nullable=False)
     page_end: Mapped[int] = mapped_column(Integer, nullable=False)
     section: Mapped[str | None] = mapped_column(String, nullable=True)
-    token_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
 class ChatSession(Base):
