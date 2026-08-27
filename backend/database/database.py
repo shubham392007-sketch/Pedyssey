@@ -13,19 +13,22 @@ engine = create_async_engine(
 )
 
 # Create session maker
-async_sessionmaker_factory = async_sessionmaker(
+async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False,
 )
+async_sessionmaker_factory = async_session_factory
+
 
 async def init_db() -> None:
     """Initialize the database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+
 async def get_db() -> AsyncIterator[AsyncSession]:
     """Dependency for getting async database session."""
-    async with async_sessionmaker_factory() as session:
+    async with async_session_factory() as session:
         yield session
