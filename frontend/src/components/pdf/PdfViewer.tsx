@@ -7,7 +7,11 @@ import { useUIStore } from '../../stores/useUIStore';
 import { documentApi } from '../../services/api';
 import { PdfControls } from './PdfControls';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Use local bundled worker for 100% offline & privacy-first operation
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 export const PdfViewer: React.FC = () => {
   const { activeDocId, documents } = useDocumentStore();
@@ -38,6 +42,7 @@ export const PdfViewer: React.FC = () => {
           file={fileUrl}
           onLoadSuccess={onDocumentLoadSuccess}
           loading={<div className="p-4 text-surface-500">Loading PDF...</div>}
+          error={<div className="p-4 text-red-500">Failed to load PDF preview.</div>}
           className="drop-shadow-lg"
         >
           <Page 
