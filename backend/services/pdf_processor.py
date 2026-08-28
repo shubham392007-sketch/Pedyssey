@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-import fitz  # PyMuPDF
+import pymupdf as fitz
 from PIL import Image
 
 from core.config import settings

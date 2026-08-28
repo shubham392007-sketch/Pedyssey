@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     API_PREFIX: str = "/api/v1"
     HOST: str = "127.0.0.1"
-    PORT: int = 8000
+    PORT: int = 8001
     
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
     DATA_DIR: Path = BASE_DIR / "data"
