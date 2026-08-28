@@ -129,3 +129,26 @@ class FAISSVectorStore(VectorStoreBase):
     def get_count(self) -> int:
         """Number of vectors."""
         return len(self._metadata) if self._metadata else 0
+
+    def get_document_overview_chunks(self, document_ids: Optional[List[str]] = None, max_chunks_per_doc: int = 4) -> List[dict]:
+        """Retrieve the beginning (abstract/intro) and ending (conclusion) chunks for given documents."""
+        if not self._metadata:
+            return []
+        doc_chunks = {}
+        for item in self._metadata:
+            d_id = item.get("document_id")
+            if document_ids and d_id not in document_ids:
+                continue
+            if d_id not in doc_chunks:
+                doc_chunks[d_id] = []
+            doc_chunks[d_id].append(item)
+        
+        overview_chunks = []
+        for d_id, chunks in doc_chunks.items():
+            if len(chunks) <= max_chunks_per_doc:
+                overview_chunks.extend(chunks)
+            else:
+                # First 2 chunks (title, abstract, intro) and last 2 chunks (conclusions, summary)
+                overview_chunks.extend(chunks[:2])
+                overview_chunks.extend(chunks[-2:])
+        return overview_chunks

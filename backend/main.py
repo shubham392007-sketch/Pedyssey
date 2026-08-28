@@ -25,6 +25,22 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized.")
     logger.info(f"Documents directory: {settings.DOCUMENTS_DIR}")
     logger.info(f"Database: {settings.DATABASE_URL}")
+    
+    # Preload document names for citation service
+    try:
+        from database.database import async_session_factory
+        from database.models import Document
+        from sqlalchemy import select
+        from services import citation_service
+        async with async_session_factory() as db:
+            res = await db.execute(select(Document))
+            docs = res.scalars().all()
+            for doc in docs:
+                citation_service.register_document_name(doc.id, doc.filename)
+            logger.info(f"Registered {len(docs)} documents in citation service.")
+    except Exception as e:
+        logger.warning(f"Could not preload document names: {e}")
+
     yield
     logger.info("Shutting down Pedyssey API...")
 

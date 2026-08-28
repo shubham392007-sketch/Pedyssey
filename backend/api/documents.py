@@ -279,6 +279,7 @@ async def _process_document_background(document_id: str):
                 {
                     "chunk_id": c.chunk_id,
                     "document_id": c.document_id,
+                    "filename": doc.filename,
                     "page_start": c.page_start,
                     "page_end": c.page_end,
                     "section": c.section,

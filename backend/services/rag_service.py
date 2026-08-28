@@ -75,7 +75,7 @@ class RAGService:
         reranked = self._reranker.rerank(question, candidates, top_k=settings.RERANK_TOP_K)
         
         # 4. Confidence evaluation
-        conf_score, should_generate = self._confidence.evaluate(reranked)
+        conf_score, should_generate = self._confidence.evaluate(reranked, query=question)
         if not should_generate:
             logger.info("Low retrieval confidence, abstaining from generation.")
             return {
@@ -135,7 +135,7 @@ class RAGService:
         yield json.dumps({"event": "reranking"}) + "\n\n"
         reranked = self._reranker.rerank(question, candidates, top_k=settings.RERANK_TOP_K)
         
-        conf_score, should_generate = self._confidence.evaluate(reranked)
+        conf_score, should_generate = self._confidence.evaluate(reranked, query=question)
         if not should_generate:
             yield json.dumps({"event": "generating"}) + "\n\n"
             yield json.dumps({"event": "token", "data": ABSTENTION_RESPONSE}) + "\n\n"

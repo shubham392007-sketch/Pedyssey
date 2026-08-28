@@ -7,6 +7,13 @@ from services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
+OVERVIEW_KEYWORDS = [
+    "topic", "conclusion", "summar", "overview", "main point", "key point",
+    "about", "what is this", "explain this", "takeaway", "findings", "objective",
+    "purpose", "abstract", "describe this", "what does this", "what are the"
+]
+
+
 class RetrievalService:
     def __init__(self, vector_store: FAISSVectorStore, bm25: BM25Service, 
                  embedding_service: EmbeddingService):
@@ -14,15 +21,20 @@ class RetrievalService:
         self._bm25 = bm25
         self._embedding_service = embedding_service
     
+    def is_overview_query(self, query: str) -> bool:
+        """Detect whether query is asking for broad document summary/topics/conclusions."""
+        q_lower = query.lower()
+        return any(k in q_lower for k in OVERVIEW_KEYWORDS)
+    
     def retrieve(self, query: str, top_k: int = 20, 
                  document_ids: Optional[List[str]] = None) -> List[dict]:
-        """Hybrid retrieval: FAISS + BM25 + Reciprocal Rank Fusion.
+        """Hybrid retrieval: FAISS + BM25 + Overview Injection + Reciprocal Rank Fusion.
         1. Embed query
         2. FAISS search (top_k * 2)
         3. BM25 search (top_k * 2)
-        4. RRF fusion: score(d) = sum(1/(k+rank(d))) for each retriever
-        5. Return top_k combined results sorted by RRF score.
-        Each result: {chunk_id, document_id, text, page_start, page_end, section, score}"""
+        4. Overview chunks (abstract, intro, conclusions) if query is broad or candidates are sparse
+        5. RRF fusion: score(d) = sum(1/(k+rank(d)))
+        6. Return top_k combined results sorted by RRF score."""
         
         search_k = top_k * 2
         
@@ -33,12 +45,24 @@ class RetrievalService:
         # 2. BM25 Search
         bm25_results = self._bm25.search(query, search_k, filter_doc_ids=document_ids)
         
-        # 3. RRF Fusion
-        fused_results = self._reciprocal_rank_fusion(faiss_results, bm25_results)
+        # 3. Check for overview query intent
+        overview_chunks = []
+        if self.is_overview_query(query) or len(faiss_results) == 0:
+            overview_chunks = self._vector_store.get_document_overview_chunks(document_ids)
+            logger.info(f"Injected {len(overview_chunks)} document overview chunks for broad/summary query.")
+            
+        # 4. RRF Fusion
+        fused_results = self._reciprocal_rank_fusion(faiss_results, bm25_results, extra_chunks=overview_chunks)
         
         return fused_results[:top_k]
     
-    def _reciprocal_rank_fusion(self, faiss_results: List[dict], bm25_results: List[dict], k: int = 60) -> List[dict]:
+    def _reciprocal_rank_fusion(
+        self, 
+        faiss_results: List[dict], 
+        bm25_results: List[dict], 
+        extra_chunks: Optional[List[dict]] = None,
+        k: int = 60
+    ) -> List[dict]:
         """Merge results using RRF."""
         rrf_scores: Dict[str, float] = {}
         chunks_map: Dict[str, dict] = {}
@@ -53,8 +77,11 @@ class RetrievalService:
                 
                 rrf_scores[chunk_id] += weight * (1.0 / (k + rank))
 
-        add_to_rrf(faiss_results)
-        add_to_rrf(bm25_results)
+        add_to_rrf(faiss_results, weight=1.0)
+        add_to_rrf(bm25_results, weight=1.0)
+        
+        if extra_chunks:
+            add_to_rrf(extra_chunks, weight=1.2)  # Boost overview structural chunks
         
         final_results = []
         for chunk_id, score in rrf_scores.items():
