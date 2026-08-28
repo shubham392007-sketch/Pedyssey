@@ -1,11 +1,16 @@
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from database.database import get_db
-from schemas.system import SystemStatusResponse, ComponentStatus, ModelsResponse, ModelInfo
-from services import vector_store, embedding_service, reranking_service, llm_service
+from schemas.system import (
+    SystemStatusResponse, ComponentStatus,
+    OllamaHealthResponse, LocalModelsResponse, LocalModelItem,
+    OllamaTestRequest, OllamaTestResponse,
+)
+from services import vector_store, embedding_service, reranking_service, ollama_service
+from core.config import settings
 
 router = APIRouter(prefix="/system", tags=["system"])
 logger = logging.getLogger(__name__)
@@ -15,6 +20,87 @@ logger = logging.getLogger(__name__)
 async def health_check():
     """Simple liveness probe."""
     return {"status": "healthy"}
+
+
+@router.get("/ollama", response_model=OllamaHealthResponse)
+async def check_ollama():
+    """Check Ollama integration health.
+    
+    Verifies:
+      1. Ollama server reachable
+      2. Configured model available
+      3. Integration ready
+    """
+    is_reachable, _ = await ollama_service.check_health()
+    configured_model = ollama_service.get_model()
+    base_url = ollama_service.get_base_url()
+
+    if not is_reachable:
+        return OllamaHealthResponse(
+            status="unavailable",
+            ollama=False,
+            base_url=None,
+            model=configured_model,
+        )
+
+    model_available = await ollama_service.is_model_available(configured_model)
+    if not model_available:
+        return OllamaHealthResponse(
+            status="model_missing",
+            ollama=True,
+            base_url=base_url,
+            model=configured_model,
+        )
+
+    return OllamaHealthResponse(
+        status="ready",
+        ollama=True,
+        base_url=base_url,
+        model=configured_model,
+    )
+
+
+@router.get("/models", response_model=LocalModelsResponse)
+async def list_local_models():
+    """Retrieve all models installed in the local Ollama instance."""
+    models_list = await ollama_service.list_models()
+    return LocalModelsResponse(
+        models=[
+            LocalModelItem(
+                name=m.get("name", ""),
+                size=m.get("size"),
+                modified_at=m.get("modified_at"),
+            )
+            for m in models_list
+        ]
+    )
+
+
+@router.post("/ollama/test", response_model=OllamaTestResponse)
+async def test_ollama_generation(request: OllamaTestRequest):
+    """Test response generation directly from the local Ollama instance.
+    
+    This endpoint exists only for development/verification purposes to confirm
+    the local LLM connection is functioning properly.
+    """
+    prompt = request.prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty.")
+
+    is_reachable, _ = await ollama_service.check_health()
+    if not is_reachable:
+        raise HTTPException(status_code=503, detail="Ollama is not running. Start Ollama and try again.")
+
+    messages = [
+        {"role": "user", "content": prompt}
+    ]
+
+    try:
+        response_text = await ollama_service.generate(messages)
+        return OllamaTestResponse(response=response_text)
+    except Exception as e:
+        logger.error(f"Ollama test generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/status", response_model=SystemStatusResponse)
@@ -75,11 +161,11 @@ async def system_status(db: AsyncSession = Depends(get_db)):
 
     # 6. Ollama Service
     try:
-        ollama_ok = await llm_service.check_health()
+        ollama_ok, _ = await ollama_service.check_health()
         ollama_status = ComponentStatus(
             name="ollama",
             status="ready" if ollama_ok else "offline",
-            detail="Ollama daemon connected" if ollama_ok else "Ollama server unreachable at localhost:11434",
+            detail=f"Ollama daemon connected at {ollama_service.get_base_url()}" if ollama_ok else f"Ollama server unreachable at {ollama_service.get_base_url()}",
         )
     except Exception as e:
         ollama_status = ComponentStatus(
@@ -91,11 +177,11 @@ async def system_status(db: AsyncSession = Depends(get_db)):
     # 7. LLM Model
     try:
         if ollama_status.status == "ready":
-            model_ok = await llm_service.is_model_available()
+            model_ok = await ollama_service.is_model_available()
             llm_status = ComponentStatus(
                 name="llm_model",
                 status="ready" if model_ok else "offline",
-                detail=f"Model '{llm_service.model}' available" if model_ok else f"Model '{llm_service.model}' not found in Ollama",
+                detail=f"Model '{ollama_service.model}' available" if model_ok else f"Model '{ollama_service.model}' not found in Ollama",
             )
         else:
             llm_status = ComponentStatus(
@@ -119,30 +205,4 @@ async def system_status(db: AsyncSession = Depends(get_db)):
         ollama=ollama_status,
         llm_model=llm_status,
         offline_mode=True,
-    )
-
-
-@router.get("/models", response_model=ModelsResponse)
-async def list_models():
-    """List information on local neural models."""
-    emb_info = ModelInfo(
-        name=embedding_service.get_model_name(),
-        status="ready" if embedding_service.is_loaded() else "available",
-        dimension=embedding_service.get_dimension(),
-    )
-    rerank_info = ModelInfo(
-        name=reranking_service._model_name,
-        status="ready" if reranking_service.is_loaded() else "available",
-        dimension=None,
-    )
-    llm_info = ModelInfo(
-        name=llm_service.model,
-        status="ready",
-        dimension=None,
-    )
-
-    return ModelsResponse(
-        embedding=emb_info,
-        reranker=rerank_info,
-        llm=llm_info,
     )

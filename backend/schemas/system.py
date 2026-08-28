@@ -1,5 +1,6 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from pydantic import BaseModel, ConfigDict
+
 
 class ComponentStatus(BaseModel):
     name: str
@@ -7,6 +8,7 @@ class ComponentStatus(BaseModel):
     detail: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class SystemStatusResponse(BaseModel):
     backend: ComponentStatus
@@ -20,6 +22,7 @@ class SystemStatusResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ModelInfo(BaseModel):
     name: str
     status: str
@@ -27,12 +30,49 @@ class ModelInfo(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ModelsResponse(BaseModel):
     embedding: ModelInfo
     reranker: ModelInfo
     llm: ModelInfo
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OllamaHealthResponse(BaseModel):
+    """Response for GET /api/v1/system/ollama"""
+    status: str  # "ready" | "unavailable" | "model_missing"
+    ollama: bool
+    base_url: Optional[str] = None
+    model: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LocalModelItem(BaseModel):
+    name: str
+    size: Optional[int] = None
+    modified_at: Optional[str] = None
+
+
+class LocalModelsResponse(BaseModel):
+    """Response for GET /api/v1/system/models"""
+    models: List[LocalModelItem]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OllamaTestRequest(BaseModel):
+    """Request for POST /api/v1/system/ollama/test"""
+    prompt: str
+
+
+class OllamaTestResponse(BaseModel):
+    """Response for POST /api/v1/system/ollama/test"""
+    response: str
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class SettingsRequest(BaseModel):
     embedding_model: Optional[str] = None
@@ -43,6 +83,7 @@ class SettingsRequest(BaseModel):
     theme: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class SettingsResponse(BaseModel):
     settings: Dict[str, str]

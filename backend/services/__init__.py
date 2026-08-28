@@ -18,7 +18,7 @@ from services.retrieval_service import RetrievalService
 from services.reranking_service import RerankingService
 from services.confidence_service import ConfidenceService
 from services.context_builder import ContextBuilder
-from services.llm_service import LLMService
+from services.ollama_service import OllamaService
 from services.citation_service import CitationService
 from services.rag_service import RAGService
 from services.document_comparison import DocumentComparisonService
@@ -52,14 +52,15 @@ confidence_service = ConfidenceService(
     threshold=settings.CONFIDENCE_THRESHOLD,
 )
 context_builder = ContextBuilder()
-llm_service = LLMService()
+ollama_service = OllamaService()
+llm_service = ollama_service  # Alias for backward compatibility
 citation_service = CitationService()
 rag_service = RAGService(
     retrieval=retrieval_service,
     reranker=reranking_service,
     confidence=confidence_service,
     context_builder=context_builder,
-    llm=llm_service,
+    llm=ollama_service,
     citation=citation_service,
 )
 document_comparison_service = DocumentComparisonService()

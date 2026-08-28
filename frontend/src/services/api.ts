@@ -1,5 +1,8 @@
 import axios from 'axios';
-import type { Document, ProcessingStatus, ChatMessage, ChatSession, SystemStatus, Citation } from '../types';
+import type {
+  Document, ProcessingStatus, ChatMessage, ChatSession,
+  SystemStatus, Citation, OllamaHealth, LocalModelsResponse,
+} from '../types';
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -111,7 +114,19 @@ export const systemApi = {
   status: async () => {
     const { data } = await api.get<SystemStatus>('/system/status');
     return data;
-  }
+  },
+  getOllamaHealth: async () => {
+    const { data } = await api.get<OllamaHealth>('/system/ollama');
+    return data;
+  },
+  getLocalModels: async () => {
+    const { data } = await api.get<LocalModelsResponse>('/system/models');
+    return data;
+  },
+  testOllama: async (prompt: string) => {
+    const { data } = await api.post<{ response: string }>('/system/ollama/test', { prompt });
+    return data;
+  },
 };
 
 export const settingsApi = {

@@ -6,7 +6,14 @@ from services.retrieval_service import RetrievalService
 from services.reranking_service import RerankingService
 from services.confidence_service import ConfidenceService
 from services.context_builder import ContextBuilder
-from services.llm_service import LLMService, OllamaOfflineError
+from services.ollama_service import (
+    OllamaService,
+    OllamaError,
+    OllamaConnectionError,
+    OllamaModelNotFoundError,
+    OllamaTimeoutError,
+    OllamaEmptyResponseError,
+)
 from services.citation_service import CitationService
 from core.constants import ABSTENTION_RESPONSE
 from core.config import settings
@@ -15,9 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 class RAGService:
-    def __init__(self, retrieval: RetrievalService, reranker: RerankingService,
-                 confidence: ConfidenceService, context_builder: ContextBuilder,
-                 llm: LLMService, citation: CitationService):
+    def __init__(
+        self,
+        retrieval: RetrievalService,
+        reranker: RerankingService,
+        confidence: ConfidenceService,
+        context_builder: ContextBuilder,
+        llm: OllamaService,
+        citation: CitationService,
+    ):
         self._retrieval = retrieval
         self._reranker = reranker
         self._confidence = confidence
@@ -27,19 +40,23 @@ class RAGService:
     
     async def answer(self, question: str, document_ids: List[str],
                      session_id: Optional[str] = None) -> dict:
-        """Full RAG pipeline:
+        """Full grounded RAG pipeline:
         1. Validate question
         2. Retrieve candidates (hybrid FAISS + BM25)
         3. Rerank evidence (Cross-Encoder)
-        4. Evaluate confidence
-        5. If low confidence -> return abstention
-        6. Build context
-        7. Generate answer via local LLM
-        8. Build citations
-        9. Return {answer, confidence, citations, session_id}"""
-        
+        4. Evaluate confidence (abstention check)
+        5. Build context
+        6. Generate grounded answer via local Ollama LLM
+        7. Build citations
+        8. Return {answer, confidence, citations, session_id}
+        """
         if not question or not question.strip():
-            return {"answer": "Question cannot be empty.", "confidence": 0.0, "citations": [], "session_id": session_id}
+            return {
+                "answer": "Question cannot be empty.",
+                "confidence": 0.0,
+                "citations": [],
+                "session_id": session_id
+            }
 
         # 2. Retrieve
         logger.info(f"Retrieving candidates for query: {question}")
@@ -47,7 +64,7 @@ class RAGService:
         
         if not candidates:
             return {
-                "answer": "No relevant document passages were found. Make sure your document has completed processing.",
+                "answer": "No relevant document passages were found in the selected documents.",
                 "confidence": 0.0,
                 "citations": [],
                 "session_id": session_id
@@ -57,10 +74,10 @@ class RAGService:
         logger.info(f"Reranking top {len(candidates)} candidates.")
         reranked = self._reranker.rerank(question, candidates, top_k=settings.RERANK_TOP_K)
         
-        # 4 & 5. Confidence check
+        # 4. Confidence evaluation
         conf_score, should_generate = self._confidence.evaluate(reranked)
         if not should_generate:
-            logger.info("Low confidence, abstaining from generation.")
+            logger.info("Low retrieval confidence, abstaining from generation.")
             return {
                 "answer": ABSTENTION_RESPONSE, 
                 "confidence": conf_score, 
@@ -68,36 +85,30 @@ class RAGService:
                 "session_id": session_id
             }
             
-        # Build citations from retrieved evidence
+        # Build citations from reranked chunks
         citations = self._citation.build_citations(reranked)
 
-        # 6. Build context
+        # 5. Build context and grounded prompt
         context = self._context_builder.build_context(reranked)
         messages = self._context_builder.build_prompt(question, context)
         
-        # 7. Generate answer via local LLM
+        # 6. Generate answer via local Ollama LLM
         try:
-            logger.info("Generating answer via local LLM.")
+            logger.info("Generating answer via local Ollama model.")
             answer = await self._llm.generate(messages)
-        except OllamaOfflineError:
-            # Provide helpful guidance when Ollama daemon is not yet started
-            top_preview = reranked[0].get('text', '')[:300] if reranked else ''
-            answer = (
-                f"> ⚠️ **Ollama is Offline**\n\n"
-                f"Your relevant document evidence was retrieved locally with high confidence ({conf_score:.2f}), "
-                f"but Ollama is not yet running for neural answer synthesis.\n\n"
-                f"**To enable complete AI answers, start Ollama in your terminal:**\n"
-                f"```bash\n"
-                f"ollama serve\n"
-                f"ollama run {settings.LLM_MODEL}\n"
-                f"```\n\n"
-                f"---\n"
-                f"### Relevant Passage Found:\n"
-                f"{top_preview}..."
-            )
+        except OllamaConnectionError:
+            answer = "Ollama is not running. Start Ollama and try again."
+        except OllamaModelNotFoundError as e:
+            answer = f"The configured local model '{self._llm.get_model()}' is not installed."
+        except OllamaTimeoutError:
+            answer = "The local model took too long to respond. Try again or select a smaller model."
+        except OllamaEmptyResponseError:
+            answer = "The local model returned an empty response."
+        except OllamaError as e:
+            answer = e.message
         except Exception as e:
             logger.error(f"Generation error: {e}")
-            answer = f"Error generating answer: {str(e)}"
+            answer = "An error occurred while generating the response from the local model."
         
         return {
             "answer": answer,
@@ -108,7 +119,7 @@ class RAGService:
     
     async def answer_stream(self, question: str, document_ids: List[str],
                             session_id: Optional[str] = None) -> AsyncIterator[str]:
-        """Same pipeline but yields SSE events."""
+        """Same pipeline yielding SSE events."""
         if not question or not question.strip():
             yield json.dumps({"event": "error", "data": "Question cannot be empty."}) + "\n\n"
             return
@@ -117,7 +128,7 @@ class RAGService:
         candidates = self._retrieval.retrieve(question, top_k=settings.RETRIEVAL_TOP_K, document_ids=document_ids)
         
         if not candidates:
-            yield json.dumps({"event": "token", "data": "No relevant document passages were found. Make sure your document has completed processing."}) + "\n\n"
+            yield json.dumps({"event": "token", "data": "No relevant document passages were found in the selected documents."}) + "\n\n"
             yield json.dumps({"event": "complete"}) + "\n\n"
             return
 
@@ -140,24 +151,19 @@ class RAGService:
         try:
             async for token in self._llm.generate_stream(messages):
                 yield json.dumps({"event": "token", "data": token}) + "\n\n"
-        except OllamaOfflineError:
-            top_preview = reranked[0].get('text', '')[:300] if reranked else ''
-            notice = (
-                f"> ⚠️ **Ollama is Offline**\n\n"
-                f"Your relevant document evidence was retrieved locally with high confidence ({conf_score:.2f}), "
-                f"but Ollama is not yet running for neural answer synthesis.\n\n"
-                f"**To enable complete AI answers, start Ollama in your terminal:**\n"
-                f"```bash\n"
-                f"ollama serve\n"
-                f"ollama run {settings.LLM_MODEL}\n"
-                f"```\n\n"
-                f"---\n"
-                f"### Relevant Passage Found:\n"
-                f"{top_preview}..."
-            )
-            yield json.dumps({"event": "token", "data": notice}) + "\n\n"
+        except OllamaConnectionError:
+            yield json.dumps({"event": "token", "data": "Ollama is not running. Start Ollama and try again."}) + "\n\n"
+        except OllamaModelNotFoundError:
+            yield json.dumps({"event": "token", "data": f"The configured local model '{self._llm.get_model()}' is not installed."}) + "\n\n"
+        except OllamaTimeoutError:
+            yield json.dumps({"event": "token", "data": "The local model took too long to respond. Try again or select a smaller model."}) + "\n\n"
+        except OllamaEmptyResponseError:
+            yield json.dumps({"event": "token", "data": "The local model returned an empty response."}) + "\n\n"
+        except OllamaError as e:
+            yield json.dumps({"event": "token", "data": e.message}) + "\n\n"
         except Exception as e:
-            yield json.dumps({"event": "token", "data": f"Error: {str(e)}"}) + "\n\n"
+            logger.error(f"Stream error: {e}")
+            yield json.dumps({"event": "token", "data": "An error occurred while generating the response."}) + "\n\n"
             
         yield json.dumps({"event": "citations", "data": citations}) + "\n\n"
         yield json.dumps({"event": "complete"}) + "\n\n"

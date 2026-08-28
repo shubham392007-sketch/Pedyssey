@@ -6,53 +6,46 @@ logger = logging.getLogger(__name__)
 
 class ContextBuilder:
     def build_context(self, chunks: List[dict]) -> str:
-        """Format evidence chunks into structured context for LLM.
-        Format:
-        [Source ID: S1]
-        Document: {filename}
-        Pages: {page_start}-{page_end}
-        Section: {section}
+        """Format evidence chunks into structured context for Ollama.
         
-        Content:
-        {text}
-        
-        Separate system instructions from document content clearly."""
-        
+        Example format:
+        SOURCE 1
+        Document: research.pdf
+        Pages: 10-11
+
+        [retrieved text]
+        """
         if not chunks:
-            return "No relevant context found."
+            return "No relevant document context found."
             
         context_parts = []
         for i, chunk in enumerate(chunks, 1):
-            filename = chunk.get('filename', 'Unknown Document')
-            page_start = chunk.get('page_start', '?')
-            page_end = chunk.get('page_end', '?')
-            section = chunk.get('section', 'Main')
+            filename = chunk.get('filename', 'document.pdf')
+            page_start = chunk.get('page_start', 1)
+            page_end = chunk.get('page_end', page_start)
+            
+            pages_str = f"{page_start}" if page_start == page_end else f"{page_start}-{page_end}"
             text = chunk.get('text', '').strip()
             
-            part = f"""[Source ID: S{i}]
+            part = f"""SOURCE {i}
 Document: {filename}
-Pages: {page_start}-{page_end}
-Section: {section}
+Pages: {pages_str}
 
-Content:
-{text}
-"""
+{text}"""
             context_parts.append(part)
             
-        return "\n".join(context_parts)
+        return "\n\n".join(context_parts)
     
     def build_prompt(self, question: str, context: str) -> List[Dict[str, str]]:
-        """Build messages list: [{role: system, content: SYSTEM_PROMPT}, 
-        {role: user, content: context + question}]."""
-        
-        user_content = f"""Context Information:
----------------------
+        """Build chat messages list for Ollama."""
+        user_content = f"""Retrieved Document Context:
+========================================
 {context}
----------------------
+========================================
 
-Question: {question}
+User Question: {question}
 
-Please answer the question based strictly on the provided context."""
+Instructions: Answer the question using strictly the retrieved document context above according to your system rules."""
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},

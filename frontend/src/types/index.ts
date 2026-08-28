@@ -61,3 +61,20 @@ export interface ComponentStatus {
   status: 'ready' | 'loading' | 'error' | 'offline';
   detail?: string;
 }
+
+export interface OllamaHealth {
+  status: 'ready' | 'unavailable' | 'model_missing';
+  ollama: boolean;
+  base_url?: string | null;
+  model: string;
+}
+
+export interface LocalModelItem {
+  name: string;
+  size?: number;
+  modified_at?: string;
+}
+
+export interface LocalModelsResponse {
+  models: LocalModelItem[];
+}
