@@ -72,8 +72,7 @@ class OllamaService:
             return False, str(e)
 
     async def list_models(self) -> List[Dict[str, Any]]:
-        """Retrieve all installed models in the local Ollama instance.
-        Returns a list of dicts with model metadata, e.g. [{'name': 'qwen3:4b', 'size': ...}]."""
+        """Retrieve all installed models in the local Ollama instance."""
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
                 res = await client.get(f"{self.base_url}/api/tags")
@@ -94,20 +93,35 @@ class OllamaService:
             logger.debug(f"Failed to list Ollama models: {e}")
             return []
 
+    async def _resolve_target_model(self, model: Optional[str] = None) -> str:
+        """Resolve model name against installed models in Ollama."""
+        target = model or self.model
+        models = await self.list_models()
+        if not models:
+            return target
+        names = [m["name"] for m in models]
+        for n in names:
+            if n == target or n.startswith(f"{target}:") or target.startswith(f"{n}:"):
+                return n
+            if n.split(":")[0] == target.split(":")[0]:
+                return n
+        # If target model is not found, but models exist, fallback to first available
+        if names:
+            return names[0]
+        return target
+
     async def is_model_available(self, model: Optional[str] = None) -> bool:
         """Verify whether the specified or configured model exists in local Ollama."""
         target_model = model or self.model
         models = await self.list_models()
         model_names = [m["name"] for m in models]
         
-        # Check exact or tag-prefixed match (e.g. 'qwen3:4b' or 'qwen3:4b:latest')
         for name in model_names:
             if name == target_model or name.startswith(f"{target_model}:") or target_model.startswith(f"{name}:"):
                 return True
-            # Check without tag (e.g. target 'qwen3:4b' matches 'qwen3:4b')
             if name.split(":")[0] == target_model.split(":")[0]:
                 return True
-        return False
+        return len(model_names) > 0
 
     async def generate(
         self,
@@ -117,7 +131,7 @@ class OllamaService:
         top_p: Optional[float] = None,
     ) -> str:
         """Generate full response text using the local Ollama model."""
-        target_model = model or self.model
+        target_model = await self._resolve_target_model(model)
         temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
         tp = top_p if top_p is not None else settings.LLM_TOP_P
 
@@ -162,7 +176,7 @@ class OllamaService:
         top_p: Optional[float] = None,
     ) -> AsyncIterator[str]:
         """Stream response tokens from the local Ollama model."""
-        target_model = model or self.model
+        target_model = await self._resolve_target_model(model)
         temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
         tp = top_p if top_p is not None else settings.LLM_TOP_P
 
