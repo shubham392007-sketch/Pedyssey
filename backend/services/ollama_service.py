@@ -105,7 +105,6 @@ class OllamaService:
                 return n
             if n.split(":")[0] == target.split(":")[0]:
                 return n
-        # If target model is not found, but models exist, fallback to first available
         if names:
             return names[0]
         return target
@@ -132,8 +131,8 @@ class OllamaService:
     ) -> str:
         """Generate full response text using the local Ollama model."""
         target_model = await self._resolve_target_model(model)
-        temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
-        tp = top_p if top_p is not None else settings.LLM_TOP_P
+        temp = temperature if temperature is not None else 0.2
+        tp = top_p if top_p is not None else 0.9
 
         payload = {
             "model": target_model,
@@ -141,7 +140,10 @@ class OllamaService:
             "stream": False,
             "options": {
                 "temperature": temp,
-                "top_p": tp
+                "top_p": tp,
+                "repeat_penalty": 1.18,
+                "repeat_last_n": 128,
+                "num_ctx": 4096,
             }
         }
 
@@ -177,8 +179,8 @@ class OllamaService:
     ) -> AsyncIterator[str]:
         """Stream response tokens from the local Ollama model."""
         target_model = await self._resolve_target_model(model)
-        temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
-        tp = top_p if top_p is not None else settings.LLM_TOP_P
+        temp = temperature if temperature is not None else 0.2
+        tp = top_p if top_p is not None else 0.9
 
         payload = {
             "model": target_model,
@@ -186,7 +188,10 @@ class OllamaService:
             "stream": True,
             "options": {
                 "temperature": temp,
-                "top_p": tp
+                "top_p": tp,
+                "repeat_penalty": 1.18,
+                "repeat_last_n": 128,
+                "num_ctx": 4096,
             }
         }
 

@@ -10,7 +10,6 @@ export const TopBar: React.FC = () => {
 
   const isReady = status?.ollama?.status === 'ready';
   const isModelMissing = status?.ollama?.status === 'ready' && status?.llm_model?.status === 'offline';
-  const isOffline = !status || status.ollama?.status === 'offline';
 
   const getStatusDisplay = () => {
     if (isReady && !isModelMissing) {

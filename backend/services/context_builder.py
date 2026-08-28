@@ -4,6 +4,7 @@ from core.constants import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
+
 class ContextBuilder:
     def build_context(self, chunks: List[dict]) -> str:
         """Format evidence chunks into structured context for Ollama.
@@ -45,7 +46,7 @@ Pages: {pages_str}
 
 User Question: {question}
 
-Instructions: Answer the question using strictly the retrieved document context above according to your system rules."""
+Instructions: Answer the user's question directly, clearly, and in a well-structured format (using bullet points or concise sections) based strictly on the provided context. Avoid repetition."""
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},

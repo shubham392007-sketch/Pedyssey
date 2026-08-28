@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Play, RefreshCw, Cpu, Server, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, Play, RefreshCw, Cpu, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SystemStatus } from '../components/system/SystemStatus';
 import { ModelStatus } from '../components/system/ModelStatus';

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  Document, ProcessingStatus, ChatMessage, ChatSession,
+  Document, ProcessingStatus, ChatMessage,
   SystemStatus, Citation, OllamaHealth, LocalModelsResponse,
 } from '../types';
 

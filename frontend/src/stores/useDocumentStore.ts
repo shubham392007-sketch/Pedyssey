@@ -16,7 +16,33 @@ export const useDocumentStore = create<DocumentState>((set) => ({
   documents: [],
   selectedDocIds: new Set(),
   activeDocId: null,
-  setDocuments: (documents) => set({ documents }),
+  setDocuments: (documents) =>
+    set((state) => {
+      const validDocIds = new Set(documents.map((d) => d.id));
+      
+      // Retain activeDocId only if it still exists in documents; otherwise default to the first document
+      let nextActiveDocId: string | null = null;
+      if (state.activeDocId && validDocIds.has(state.activeDocId)) {
+        nextActiveDocId = state.activeDocId;
+      } else if (documents.length > 0) {
+        nextActiveDocId = documents[0].id;
+      }
+
+      // Clean up selectedDocIds
+      const newSelected = new Set(
+        Array.from(state.selectedDocIds).filter((id) => validDocIds.has(id))
+      );
+      // If nothing selected and documents exist, select active doc by default
+      if (newSelected.size === 0 && nextActiveDocId) {
+        newSelected.add(nextActiveDocId);
+      }
+
+      return {
+        documents,
+        activeDocId: nextActiveDocId,
+        selectedDocIds: newSelected,
+      };
+    }),
   toggleSelect: (id) =>
     set((state) => {
       const newSelected = new Set(state.selectedDocIds);
@@ -27,7 +53,8 @@ export const useDocumentStore = create<DocumentState>((set) => ({
       }
       return { selectedDocIds: newSelected };
     }),
-  selectAll: () => set((state) => ({ selectedDocIds: new Set(state.documents.map(d => d.id)) })),
+  selectAll: () =>
+    set((state) => ({ selectedDocIds: new Set(state.documents.map((d) => d.id)) })),
   deselectAll: () => set({ selectedDocIds: new Set() }),
   setActiveDoc: (id) => set({ activeDocId: id }),
 }));
