@@ -11,21 +11,32 @@ export const DocumentItem: React.FC<{ document: Document }> = ({ document }) => 
   
   const isSelected = selectedDocIds.has(document.id);
   const isActive = activeDocId === document.id;
-  const isProcessing = document.status === 'processing' || document.status === 'pending';
+  
+  const statusUpper = (document.status || '').toUpperCase();
+  const isReady = statusUpper === 'READY';
+  const isError = statusUpper === 'FAILED' || statusUpper === 'ERROR';
+  const isProcessing = !isReady && !isError;
   
   const { data: statusData } = useProcessingStatus(document.id, isProcessing);
 
   const getStatusColor = () => {
-    if (document.status === 'ready') return 'bg-green-500';
-    if (document.status === 'error') return 'bg-red-500';
-    return 'bg-yellow-500';
+    if (isReady) return 'bg-emerald-500';
+    if (isError) return 'bg-rose-500';
+    return 'bg-amber-500 animate-pulse';
+  };
+
+  const handleClick = () => {
+    setActiveDoc(document.id);
+    if (!isSelected) {
+      toggleSelect(document.id);
+    }
   };
 
   return (
     <div 
       className={`group flex flex-col p-3 rounded-lg border cursor-pointer transition-colors
         ${isActive ? 'bg-primary-50 border-primary-200 dark:bg-primary-900/20 dark:border-primary-800' : 'bg-white border-transparent hover:border-surface-200 dark:bg-surface-900 dark:hover:border-surface-700'}`}
-      onClick={() => setActiveDoc(document.id)}
+      onClick={handleClick}
     >
       <div className="flex items-start gap-3">
         <input 
@@ -46,7 +57,7 @@ export const DocumentItem: React.FC<{ document: Document }> = ({ document }) => 
             <span>{document.page_count} pages</span>
             <div className="flex items-center gap-1">
               <span className={`w-2 h-2 rounded-full ${getStatusColor()}`}></span>
-              <span className="capitalize">{document.status}</span>
+              <span className="capitalize">{document.status.toLowerCase()}</span>
             </div>
           </div>
         </div>
