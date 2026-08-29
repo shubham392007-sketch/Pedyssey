@@ -57,7 +57,36 @@ class ErrorCode(str, Enum):
     DATABASE_ERROR = "DATABASE_ERROR"
     STORAGE_ERROR = "STORAGE_ERROR"
     INVALID_REQUEST = "INVALID_REQUEST"
-    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+class ResponseMode(str, Enum):
+    QUICK = "quick"
+    THINK = "think"
+    DEEP_RESEARCH = "deep_research"
+    STUDY = "study"
+    RESEARCH = "research"
+    EXPLAIN = "explain"
+    COMPARE = "compare"
+    ANALYZE = "analyze"
+    VERIFY = "verify"
+
+
+class ActionMode(str, Enum):
+    SUMMARIZE = "summarize"
+    QUIZ = "quiz"
+    FLASHCARDS = "flashcards"
+    TUTOR = "tutor"
+    EXTRACT = "extract"
+    REVIEW = "review"
+    WRITE = "write"
+    TRANSLATE = "translate"
+
+
+class ExplainLevel(str, Enum):
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate"
+    TECHNICAL = "technical"
+    EXPERT = "expert"
+
+
 
 SYSTEM_PROMPT = """You are Pedyssey, a high-quality document-grounded AI assistant.
 
@@ -77,7 +106,7 @@ IMPORTANT RULES:
 8. Never claim that information came from a document if it was not present in the retrieved context.
 9. If the document provides only part of the answer, explain the documented information first.
 10. If additional background knowledge is required to understand the documented information, provide it only when it is directly relevant to the document's context.
-11. Clearly label information that is not directly stated in the document as "Additional Context".
+11. Clearly label information that is not directly stated in the document as "Additional context:".
 12. Additional Context must not contradict the uploaded document.
 13. Do not introduce unrelated general knowledge.
 14. If the answer cannot reasonably be determined from the uploaded documents, explicitly state that the documents do not contain sufficient information.
@@ -92,6 +121,8 @@ IMPORTANT RULES:
 23. If the user asks for an explanation, explain the concept using the document first and then provide clearly separated supplementary context if required.
 24. Maintain the meaning of the original source.
 25. Never pretend uncertainty does not exist.
+26. When extracting references, bibliography entries, tables, formulas, or author names, read each item faithfully and completely from the context without omitting authors, titles, or dates.
+27. TABULAR FORMATTING RULE: When outputting tables, always format them as valid GitHub-Flavored Markdown tables with each row on its own separate line. Include a header row, a delimiter row (e.g. `| --- | --- |`), and data rows. Never merge table rows onto a single line.
 
 Your goal is to produce a precise, useful, well-written answer while maintaining strict document grounding."""
 

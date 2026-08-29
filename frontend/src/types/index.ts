@@ -28,6 +28,53 @@ export interface Citation {
   text_preview?: string;
 }
 
+export type ResponseMode = 
+  | 'quick' 
+  | 'think' 
+  | 'deep_research' 
+  | 'study' 
+  | 'research' 
+  | 'explain' 
+  | 'compare' 
+  | 'analyze' 
+  | 'verify';
+
+export type ActionMode = 
+  | 'summarize' 
+  | 'quiz' 
+  | 'flashcards' 
+  | 'tutor' 
+  | 'extract' 
+  | 'review' 
+  | 'write' 
+  | 'translate';
+
+export type ExplainLevel = 'beginner' | 'intermediate' | 'technical' | 'expert';
+
+export interface Flashcard {
+  front: string;
+  back: string;
+  page?: number;
+  topic?: string;
+}
+
+export interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correct_index: number;
+  explanation: string;
+  page?: number;
+  topic?: string;
+}
+
+export interface StructuredChatData {
+  type: 'flashcards' | 'quiz' | 'verification' | 'table';
+  items?: Flashcard[];
+  questions?: QuizQuestion[];
+  verdict?: 'SUPPORTED' | 'PARTIALLY SUPPORTED' | 'CONTRADICTED' | 'INSUFFICIENT EVIDENCE';
+}
+
 export interface ChatMessage {
   id: string;
   session_id: string;
@@ -37,6 +84,13 @@ export interface ChatMessage {
   confidence_level?: string;
   category?: string;
   citations?: Citation[];
+  mode?: ResponseMode;
+  action?: ActionMode;
+  explain_level?: ExplainLevel;
+  duration_seconds?: number;
+  evidence_quality?: string;
+  follow_ups?: string[];
+  structured_data?: StructuredChatData | null;
   created_at: string;
 }
 

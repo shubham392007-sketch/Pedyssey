@@ -60,7 +60,54 @@ class PDFProcessor:
         try:
             doc = fitz.open(str(file_path))
             page = doc.load_page(page_num)
-            text = page.get_text()
+            page_dict = page.get_text("dict")
+            
+            lines = []
+            for block in page_dict.get("blocks", []):
+                if "lines" in block:
+                    for line in block["lines"]:
+                        line_text = "".join(span.get("text", "") for span in line.get("spans", [])).strip()
+                        if line_text:
+                            lines.append({
+                                "bbox": line["bbox"],
+                                "text": line_text
+                            })
+            
+            if not lines:
+                doc.close()
+                return ""
+                
+            page_width = page.rect.width
+            page_height = page.rect.height
+            mid_x = page_width / 2.0
+            
+            # Check if this page has multi-column structure
+            has_two_columns = False
+            left_col = any((l["bbox"][0] + l["bbox"][2]) / 2.0 < (mid_x - 20) for l in lines)
+            right_col = any((l["bbox"][0] + l["bbox"][2]) / 2.0 > (mid_x + 20) for l in lines)
+            if left_col and right_col:
+                has_two_columns = True
+                
+            if has_two_columns:
+                def sort_key(l):
+                    bbox = l["bbox"]
+                    x0, y0, x1, y1 = bbox[0], bbox[1], bbox[2], bbox[3]
+                    center_x = (x0 + x1) / 2.0
+                    is_full_width = (x1 - x0) > (page_width * 0.65)
+                    if y0 < 110 and is_full_width:
+                        return (0, y0)  # Top banner/title across both columns
+                    if y1 > (page_height - 50):
+                        return (3, y0)  # Footer/page numbers
+                    if center_x < mid_x:
+                        return (1, y0)  # Left column
+                    return (2, y0)      # Right column
+                    
+                sorted_lines = sorted(lines, key=sort_key)
+                text = "\n".join(l["text"] for l in sorted_lines)
+            else:
+                sorted_lines = sorted(lines, key=lambda l: (l["bbox"][1], l["bbox"][0]))
+                text = "\n".join(l["text"] for l in sorted_lines)
+                
             doc.close()
             return text
         except Exception as e:

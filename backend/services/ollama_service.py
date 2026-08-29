@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 import httpx
 from typing import AsyncIterator, List, Dict, Optional, Any
 from core.config import settings
@@ -45,8 +46,16 @@ class OllamaService:
     def __init__(self):
         self.base_url = settings.OLLAMA_BASE_URL.rstrip('/')
         self.model = settings.OLLAMA_MODEL
-        self.timeout_seconds = max(float(getattr(settings, 'OLLAMA_TIMEOUT', 180)), 180.0)
+        self._resolved_model_cache: Optional[str] = None
+        self.timeout_seconds = max(float(getattr(settings, 'OLLAMA_TIMEOUT', 300)), 300.0)
         self.timeout = httpx.Timeout(self.timeout_seconds, connect=10.0)
+        self.num_ctx = getattr(settings, 'OLLAMA_NUM_CTX', 8192)
+        self.num_predict = getattr(settings, 'OLLAMA_NUM_PREDICT', 4096)
+
+    @staticmethod
+    def _strip_think_tags(text: str) -> str:
+        """Remove <think>...</think> blocks produced by Qwen3's thinking mode."""
+        return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
     def get_base_url(self) -> str:
         return self.base_url
@@ -56,6 +65,7 @@ class OllamaService:
 
     def set_model(self, model_name: str) -> None:
         self.model = model_name
+        self._resolved_model_cache = None
 
     async def check_health(self) -> tuple[bool, str]:
         """Check if Ollama server is reachable."""
@@ -96,16 +106,25 @@ class OllamaService:
     async def _resolve_target_model(self, model: Optional[str] = None) -> str:
         """Resolve model name against installed models in Ollama."""
         target = model or self.model
+        if not model and self._resolved_model_cache:
+            return self._resolved_model_cache
+            
         models = await self.list_models()
         if not models:
             return target
         names = [m["name"] for m in models]
         for n in names:
             if n == target or n.startswith(f"{target}:") or target.startswith(f"{n}:"):
+                if not model:
+                    self._resolved_model_cache = n
                 return n
             if n.split(":")[0] == target.split(":")[0]:
+                if not model:
+                    self._resolved_model_cache = n
                 return n
         if names:
+            if not model:
+                self._resolved_model_cache = names[0]
             return names[0]
         return target
 
@@ -128,11 +147,13 @@ class OllamaService:
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
+        num_predict: Optional[int] = None,
     ) -> str:
         """Generate full response text using the local Ollama model."""
         target_model = await self._resolve_target_model(model)
-        temp = temperature if temperature is not None else 0.2
+        temp = temperature if temperature is not None else 0.1
         tp = top_p if top_p is not None else 0.9
+        pred = num_predict if num_predict is not None else self.num_predict
 
         payload = {
             "model": target_model,
@@ -141,10 +162,10 @@ class OllamaService:
             "options": {
                 "temperature": temp,
                 "top_p": tp,
-                "repeat_penalty": 1.18,
+                "repeat_penalty": 1.15,
                 "repeat_last_n": 128,
-                "num_ctx": 4096,
-                "num_predict": 512,
+                "num_ctx": self.num_ctx,
+                "num_predict": pred,
             }
         }
 
@@ -156,6 +177,7 @@ class OllamaService:
                 res.raise_for_status()
                 data = res.json()
                 content = data.get("message", {}).get("content", "").strip()
+                content = self._strip_think_tags(content)
                 if not content:
                     raise OllamaEmptyResponseError()
                 return content
@@ -177,11 +199,17 @@ class OllamaService:
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
+        num_predict: Optional[int] = None,
     ) -> AsyncIterator[str]:
-        """Stream response tokens from the local Ollama model."""
+        """Stream response tokens from the local Ollama model.
+        
+        Filters out <think>...</think> blocks produced by Qwen3's thinking mode
+        so only the actual answer is yielded to the caller.
+        """
         target_model = await self._resolve_target_model(model)
-        temp = temperature if temperature is not None else 0.2
+        temp = temperature if temperature is not None else 0.1
         tp = top_p if top_p is not None else 0.9
+        pred = num_predict if num_predict is not None else self.num_predict
 
         payload = {
             "model": target_model,
@@ -190,10 +218,10 @@ class OllamaService:
             "options": {
                 "temperature": temp,
                 "top_p": tp,
-                "repeat_penalty": 1.18,
+                "repeat_penalty": 1.15,
                 "repeat_last_n": 128,
-                "num_ctx": 4096,
-                "num_predict": 512,
+                "num_ctx": self.num_ctx,
+                "num_predict": pred,
             }
         }
 
@@ -203,15 +231,57 @@ class OllamaService:
                     if response.status_code == 404:
                         raise OllamaModelNotFoundError(target_model)
                     response.raise_for_status()
+                    
+                    # State machine to filter <think>...</think> blocks
+                    in_think = False
+                    buffer = ""
+                    
                     async for line in response.aiter_lines():
                         if line:
                             try:
                                 data = json.loads(line)
                                 token = data.get("message", {}).get("content", "")
-                                if token:
-                                    yield token
+                                if not token:
+                                    continue
+                                
+                                buffer += token
+                                
+                                # Check for <think> opening
+                                if not in_think and "<think>" in buffer:
+                                    # Yield everything before <think>
+                                    before = buffer[:buffer.index("<think>")]
+                                    if before:
+                                        yield before
+                                    buffer = buffer[buffer.index("<think>"):]
+                                    in_think = True
+                                
+                                # Check for </think> closing
+                                if in_think and "</think>" in buffer:
+                                    after = buffer[buffer.index("</think>") + len("</think>"):]
+                                    buffer = after
+                                    in_think = False
+                                    # Yield any content after </think>
+                                    if buffer:
+                                        yield buffer
+                                        buffer = ""
+                                    continue
+                                
+                                # If inside think block, keep buffering (don't yield)
+                                if in_think:
+                                    continue
+                                
+                                # Not in think block — yield the buffer and reset
+                                if buffer:
+                                    yield buffer
+                                    buffer = ""
+                                    
                             except json.JSONDecodeError:
                                 pass
+                    
+                    # Yield any remaining buffer after stream ends
+                    if buffer and not in_think:
+                        yield buffer
+                        
         except (httpx.ConnectError, httpx.ConnectTimeout):
             logger.warning(f"Failed to connect to Ollama stream at {self.base_url}")
             raise OllamaConnectionError()

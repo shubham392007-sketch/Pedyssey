@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Copy, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
 import type { ChatMessage as ChatMessageType } from '../../types';
 import { AnswerSources } from '../citations/AnswerSources';
@@ -65,7 +66,7 @@ export const ChatMessage: React.FC<{ message: ChatMessageType; isStreaming?: boo
           <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
         ) : (
           <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed break-words">
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             {isStreaming && <span className="inline-block w-2 h-4 ml-1 bg-primary-500 animate-pulse align-middle" />}
           </div>
         )}

@@ -39,11 +39,7 @@ class ContextBuilder:
             pages_str = f"{page_start}" if page_start == page_end else f"{page_start}-{page_end}"
             text = chunk.get('text', '').strip()
             
-            part = f"""SOURCE {i}
-Document: {filename}
-Pages: {pages_str}
-Chunk ID: {chunk_id}
-
+            part = f"""=== CONTEXT EXCERPT {i} (from {filename}, Pages: {pages_str}) ===
 {text}"""
             context_parts.append(part)
             
@@ -54,32 +50,34 @@ Chunk ID: {chunk_id}
         question: str, 
         context: str, 
         category: AnswerCategory = AnswerCategory.CATEGORY_A,
-        confidence_level: ConfidenceLevel = ConfidenceLevel.HIGH
+        confidence_level: ConfidenceLevel = ConfidenceLevel.HIGH,
+        mode: str = "quick",
+        action: Optional[str] = None,
+        explain_level: Optional[str] = None,
+        target_language: Optional[str] = None,
+        quiz_config: Optional[dict] = None
     ) -> List[Dict[str, str]]:
-        """Build chat messages list for Ollama with category-tailored instructions."""
-        
-        if category == AnswerCategory.CATEGORY_B:
-            category_instruction = (
-                "Instructions:\n"
-                "1. Answer using the information available in the retrieved document context as your primary ground truth.\n"
-                "2. Provide any supplementary conceptual background clearly separated under the heading 'Additional Context:'.\n"
-                "3. Never claim supplementary background exists in the PDF."
-            )
-        elif category == AnswerCategory.CATEGORY_C:
-            category_instruction = (
-                "Instructions:\n"
-                "1. The exact answer is not explicitly available in the retrieved excerpts, though the subject is related to the document domain.\n"
-                "2. State explicitly: 'The uploaded documents do not contain sufficient information to answer this question directly.'\n"
-                "3. Follow with: 'Additional Context:' and provide a helpful, factual explanation."
-            )
-        else:
-            # Category A: Fully in PDF
-            category_instruction = (
-                "Instructions:\n"
-                "1. Answer the user's question directly, clearly, and accurately based strictly on the retrieved document context across all referenced pages.\n"
-                "2. Structure your response with clean markdown (headings, bullet points, bold key terms, or structured sections).\n"
-                "3. Maintain high answer quality comparable to a research assistant. Avoid circular repetition."
-            )
+        """Build chat messages list for Ollama with structured document-grounded instructions tailored by response mode."""
+        from services.mode_service import ModeService
+
+        mode_specific_guidance = ModeService.get_mode_prompt_instruction(
+            mode=mode,
+            action=action,
+            explain_level=explain_level,
+            target_language=target_language,
+            quiz_config=quiz_config
+        )
+
+        category_instruction = f"""INSTRUCTIONS FOR YOUR ANSWER:
+1. Answer the user's question directly, clearly, and authoritatively using the retrieved document context as your primary source.
+2. Synthesize information across all relevant pages (e.g., Pages 1–14). Cite page numbers in parentheses (e.g., Page 1, Page 3, Pages 4–7) whenever referencing findings, architectures, methods, or results.
+3. If the user asks for the main idea, summary, overview, limitations, methodology, or key points, synthesize the core thesis, contributions, and findings of the document thoroughly.
+4. ACADEMIC REFERENCES & CITATIONS: When the user asks about references, bibliography, or cited authors ([1], [2], [3]... [8]), find the 'REFERENCES' or bibliography list printed inside the document text. Extract every cited reference entry verbatim including all author names, full paper titles, journal/conference names, volume/issue numbers, and publication years. Do NOT confuse CONTEXT EXCERPT numbers with the document's internal academic references.
+5. TABULAR OUTPUT FORMATTING: When presenting comparisons, summaries, or structured data in a table, ALWAYS use valid GitHub Flavored Markdown table syntax. Put each table row on its own separate line with matching column delimiters (e.g. `| Col 1 | Col 2 |\\n|---|---|\\n| Val 1 | Val 2 |`). Never merge multiple rows onto a single line.
+6. Structure your response with clean Markdown: start with a direct executive summary/main finding, followed by structured sections with descriptive headings (###), bold terms, and bulleted breakdowns.
+7. Maintain absolute factual fidelity to the uploaded document.
+
+{mode_specific_guidance}"""
 
         user_content = f"""Retrieved Document Context:
 ========================================

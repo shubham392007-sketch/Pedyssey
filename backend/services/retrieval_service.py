@@ -17,7 +17,7 @@ class RetrievalService:
     
     def retrieve(self, query: str, top_k: int = 20, 
                  document_ids: Optional[List[str]] = None) -> List[dict]:
-        """Pure dynamic question-specific hybrid retrieval: FAISS (dense) + BM25 (sparse) + RRF.
+        """Dynamic question-specific hybrid retrieval: FAISS (dense) + BM25 (sparse) + RRF.
         Retrieves relevant evidence from ANY page across the entire document without first-page bias.
         
         1. Embed user query
@@ -37,6 +37,43 @@ class RetrievalService:
         
         # 3. Dynamic RRF Fusion
         fused_results = self._reciprocal_rank_fusion(faiss_results, bm25_results)
+        
+        # 4. Check if query is broad or overview - include early chunks (Abstract / Intro) if not present
+        q_lower = query.lower()
+        overview_terms = ["summar", "main idea", "idea", "overview", "about", "what is", "explain", "findings", "topic", "purpose"]
+        if any(term in q_lower for term in overview_terms):
+            seen_chunk_ids = {c['chunk_id'] for c in fused_results}
+            if hasattr(self._vector_store, '_metadata'):
+                for meta in self._vector_store._metadata:
+                    if document_ids is None or meta.get('document_id') in document_ids:
+                        if meta.get('page_start', 1) <= 2 and meta.get('chunk_id') not in seen_chunk_ids:
+                            item = dict(meta)
+                            item['score'] = 0.05
+                            fused_results.append(item)
+                            seen_chunk_ids.add(meta.get('chunk_id'))
+                            if len(seen_chunk_ids) >= top_k + 5:
+                                break
+
+        # 5. Check if query is about references, bibliography, or cited authors
+        reference_terms = ["reference", "bibliography", "cited", "author", "literature", "works cited", "citation", "who wrote", "papers cited"]
+        if any(term in q_lower for term in reference_terms):
+            seen_chunk_ids = {c['chunk_id'] for c in fused_results}
+            if hasattr(self._vector_store, '_metadata'):
+                for meta in self._vector_store._metadata:
+                    if document_ids is None or meta.get('document_id') in document_ids:
+                        txt_lower = meta.get('text', '').lower()
+                        if 'reference' in txt_lower or '[1]' in txt_lower or '[2]' in txt_lower or '[3]' in txt_lower:
+                            if meta.get('chunk_id') not in seen_chunk_ids:
+                                item = dict(meta)
+                                item['score'] = 0.95
+                                fused_results.insert(0, item)
+                                seen_chunk_ids.add(meta.get('chunk_id'))
+                            else:
+                                # Boost existing candidate to the top
+                                for idx, c in enumerate(fused_results):
+                                    if c.get('chunk_id') == meta.get('chunk_id'):
+                                        fused_results.insert(0, fused_results.pop(idx))
+                                        break
         
         logger.info(
             f"Retrieval for '{query[:40]}...': FAISS returned {len(faiss_results)}, "

@@ -41,7 +41,7 @@ export const DocumentItem: React.FC<{ document: Document }> = ({ document }) => 
       <div className="flex items-start gap-3">
         <input 
           type="checkbox"
-          checked={isSelected}
+          checked={Boolean(isSelected)}
           onChange={(e) => { e.stopPropagation(); toggleSelect(document.id); }}
           className="mt-1 rounded border-surface-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
         />

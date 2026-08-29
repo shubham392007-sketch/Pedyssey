@@ -4,32 +4,185 @@
 
 @layer base {
   :root {
-    color-scheme: light dark;
+    --lime: #DFE968;
+    --cream: #FBF1CF;
+    --blush: #F6C8D6;
+    --peach: #F3A878;
+    --cta: #F6BB84;
+    --ink: #1C1C1C;
+    --card-cream: #FBF6DF;
+    
+    --radius-pill: 999px;
+    --radius-card: 28px;
+    --radius-small: 14px;
+    
+    --border: 1px solid var(--ink);
+    --page-max: 1200px;
   }
   
   html, body {
-    @apply h-full antialiased text-surface-900 bg-surface-50;
-  }
-  
-  .dark {
-    @apply text-surface-100 bg-surface-950;
+    color: #1C1C1C;
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    background: linear-gradient(
+      180deg,
+      #FBF1CF 0%,
+      #F6C8D6 52%,
+      #F3A878 100%
+    );
+    background-attachment: fixed;
   }
 }
 
-/* Custom scrollbar for webkit */
+/* Typography Helpers */
+.font-script {
+  font-family: 'Yellowtail', cursive;
+}
+
+/* Signature Gradient Background Class */
+.bg-moonwood-gradient {
+  background: linear-gradient(
+    180deg,
+    #FBF1CF 0%,
+    #F6C8D6 52%,
+    #F3A878 100%
+  );
+}
+
+/* Wavy Clip Path Panels */
+.wavy-panel {
+  background-color: #FBF6DF;
+  border: 1.5px solid #1C1C1C;
+  border-radius: 36px;
+  position: relative;
+}
+
+/* Subtle Organic Blob Animation */
+@keyframes blob-float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+}
+
+.animate-blob {
+  animation: blob-float 6s ease-in-out infinite;
+}
+
+/* Custom Scrollbar for Workspace */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(28, 28, 28, 0.04);
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-surface-300 dark:bg-surface-700 rounded-full;
+  background: rgba(28, 28, 28, 0.2);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-surface-400 dark:bg-surface-600;
+  background: rgba(28, 28, 28, 0.35);
 }
+
+/* Rich Loading & Real-time Animations */
+@keyframes shimmer-stripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 40px 0;
+  }
+}
+
+.animate-shimmer-stripes {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.3) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0.3) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 40px 40px;
+  animation: shimmer-stripes 1s linear infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(223, 233, 104, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(223, 233, 104, 0);
+    transform: scale(1.04);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes radar-sweep {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-radar {
+  animation: radar-sweep 1.4s linear infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.animate-cursor {
+  animation: blink-cursor 0.8s ease-in-out infinite;
+}
+
+@keyframes bounce-dot {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.3;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-bounce-dot-1 {
+  animation: bounce-dot 1.2s infinite ease-in-out;
+  animation-delay: 0s;
+}
+
+.animate-bounce-dot-2 {
+  animation: bounce-dot 1.2s infinite ease-in-out;
+  animation-delay: 0.2s;
+}
+
+.animate-bounce-dot-3 {
+  animation: bounce-dot 1.2s infinite ease-in-out;
+  animation-delay: 0.4s;
+}
+

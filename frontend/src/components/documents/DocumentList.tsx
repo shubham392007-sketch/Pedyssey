@@ -23,7 +23,7 @@ export const DocumentList: React.FC = () => {
         <label className="flex items-center gap-2 cursor-pointer text-surface-600 dark:text-surface-400">
           <input 
             type="checkbox" 
-            checked={allSelected}
+            checked={Boolean(allSelected)}
             onChange={() => allSelected ? deselectAll() : selectAll()}
             className="rounded border-surface-300 text-primary-600 focus:ring-primary-500"
           />

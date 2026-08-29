@@ -2,6 +2,7 @@ import axios from 'axios';
 import type {
   Document, ProcessingStatus, ChatMessage,
   SystemStatus, Citation, OllamaHealth, LocalModelsResponse,
+  ResponseMode, ActionMode, ExplainLevel, StructuredChatData
 } from '../types';
 
 const api = axios.create({
@@ -34,6 +35,14 @@ export const documentApi = {
     const { data } = await api.post<ProcessingStatus>(`/documents/${id}/process`);
     return data;
   },
+  reindex: async (id: string) => {
+    const { data } = await api.post<any>(`/documents/${id}/reindex`);
+    return data;
+  },
+  reindexAll: async () => {
+    const { data } = await api.post<any>('/documents/reindex-all');
+    return data;
+  },
   getStatus: async (id: string) => {
     const { data } = await api.get<ProcessingStatus>(`/documents/${id}/status`);
     return data;
@@ -41,12 +50,32 @@ export const documentApi = {
   getFileUrl: (id: string) => `/api/v1/documents/${id}/file`,
 };
 
+export interface DebugRetrievalResult {
+  rank: number;
+  chunk_id: string;
+  document_id: string;
+  page_start: number;
+  page_end: number;
+  snippet: string;
+  reranker_score: number;
+  raw_reranker_score: number;
+  faiss_score?: number;
+  bm25_score?: number;
+}
+
 export interface StreamResult {
   content: string;
   citations: Citation[];
   confidence?: number;
   confidence_level?: string;
   category?: string;
+  mode?: ResponseMode;
+  action?: ActionMode;
+  explain_level?: ExplainLevel;
+  duration_seconds?: number;
+  evidence_quality?: string;
+  follow_ups?: string[];
+  structured_data?: StructuredChatData | null;
 }
 
 export const chatApi = {
@@ -63,16 +92,34 @@ export const chatApi = {
     question: string,
     documentIds: string[],
     sessionId?: string,
+    mode: ResponseMode = 'quick',
+    action?: ActionMode,
+    explainLevel?: ExplainLevel,
+    targetLanguage?: string,
+    quizConfig?: Record<string, any>,
     onMessage?: (text: string) => void,
     onCitations?: (citations: Citation[]) => void,
-    onConfidence?: (conf: { score: number; level: string; category: string }) => void
+    onConfidence?: (conf: { score: number; level: string; category: string; evidence_quality?: string }) => void,
+    onStage?: (stage: string) => void,
+    onFollowUps?: (followUps: string[]) => void,
+    onStructuredData?: (data: StructuredChatData) => void
   ): Promise<StreamResult> => {
     const response = await fetch('/api/v1/chat/ask', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ question, document_ids: documentIds, session_id: sessionId, stream: true }),
+      body: JSON.stringify({ 
+        question, 
+        document_ids: documentIds, 
+        session_id: sessionId, 
+        stream: true, 
+        mode,
+        action,
+        explain_level: explainLevel,
+        target_language: targetLanguage,
+        quiz_config: quizConfig
+      }),
     });
 
     if (!response.body) throw new Error('No readable stream');
@@ -85,48 +132,105 @@ export const chatApi = {
     let confScore: number | undefined;
     let confLevel: string | undefined;
     let category: string | undefined;
+    let evidenceQuality: string | undefined;
+    let resultMode: ResponseMode = mode;
+    let durationSeconds: number | undefined;
+    let followUps: string[] | undefined;
+    let structuredData: StructuredChatData | null = null;
+    let lineBuffer = '';
 
     while (!done) {
       const { value, done: readerDone } = await reader.read();
       done = readerDone;
       if (value) {
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.substring(6).trim();
-            if (dataStr === '[DONE]') continue;
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.event === 'confidence' && data.data) {
-                confScore = data.data.score;
-                confLevel = data.data.level;
-                category = data.data.category;
-                onConfidence?.(data.data);
+        lineBuffer += decoder.decode(value, { stream: !done });
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() || '';
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line || !line.startsWith('data:')) continue;
+
+          const dataStr = line.replace(/^data:\s*/, '').trim();
+          if (dataStr === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.event === 'confidence' && data.data) {
+              confScore = data.data.score;
+              confLevel = data.data.level;
+              category = data.data.category;
+              evidenceQuality = data.data.evidence_quality;
+              onConfidence?.(data.data);
+            } else if (data.event === 'citations' && Array.isArray(data.data)) {
+              citations = data.data;
+              onCitations?.(citations);
+            } else if (data.citations && Array.isArray(data.citations)) {
+              citations = data.citations;
+              onCitations?.(citations);
+            } else if (data.event === 'stage' && typeof data.data === 'string') {
+              onStage?.(data.data);
+            } else if (data.event === 'retrieving') {
+              onStage?.('retrieving');
+            } else if (data.event === 'reranking') {
+              onStage?.('reranking');
+            } else if (data.event === 'generating') {
+              onStage?.('generating');
+            } else if (data.event === 'complete' && data.data) {
+              if (data.data.duration_seconds !== undefined) {
+                durationSeconds = data.data.duration_seconds;
               }
-              if (data.content) {
-                fullContent += data.content;
-                onMessage?.(fullContent);
+              if (data.data.mode) {
+                resultMode = data.data.mode;
               }
-              if (data.citations && Array.isArray(data.citations)) {
-                citations = data.citations;
-                onCitations?.(citations);
+              if (data.data.evidence_quality) {
+                evidenceQuality = data.data.evidence_quality;
               }
-            } catch (e) {
-              console.error('Error parsing SSE chunk', e);
+              if (data.data.follow_ups) {
+                followUps = data.data.follow_ups;
+                onFollowUps?.(data.data.follow_ups);
+              }
+              if (data.data.structured_data) {
+                structuredData = data.data.structured_data;
+                onStructuredData?.(data.data.structured_data);
+              }
             }
+            
+            // Extract token content
+            const token = data.content ?? (data.event === 'token' ? data.data : undefined);
+            if (typeof token === 'string' && token.length > 0) {
+              fullContent += token;
+              onMessage?.(fullContent);
+            }
+          } catch (e) {
+            console.error('Error parsing SSE chunk:', e, 'Raw chunk:', dataStr);
           }
         }
       }
     }
+
     return {
       content: fullContent,
       citations,
       confidence: confScore,
       confidence_level: confLevel,
       category,
+      mode: resultMode,
+      action,
+      explain_level: explainLevel,
+      duration_seconds: durationSeconds,
+      evidence_quality: evidenceQuality,
+      follow_ups: followUps,
+      structured_data: structuredData,
     };
-  }
+  },
+  debugRetrieval: async (question: string, documentIds?: string[]) => {
+    const { data } = await api.post<{ question: string; total_candidates: number; results: DebugRetrievalResult[] }>(
+      '/chat/debug-retrieval',
+      { question, document_ids: documentIds }
+    );
+    return data;
+  },
 };
 
 export const systemApi = {

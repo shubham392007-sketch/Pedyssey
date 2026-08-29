@@ -49,6 +49,11 @@ async def chat_sync(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             question=request.question,
             document_ids=request.document_ids,
             session_id=session_id,
+            mode=request.mode or "quick",
+            action=request.action,
+            explain_level=request.explain_level,
+            target_language=request.target_language,
+            quiz_config=request.quiz_config,
         )
         answer = rag_result.get("answer", "")
         confidence = float(rag_result.get("confidence", 0.0))
@@ -78,6 +83,13 @@ async def chat_sync(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         citations=citation_objs,
         session_id=session_id,
         message_id=assistant_msg_id,
+        mode=rag_result.get("mode", request.mode or "quick"),
+        action=rag_result.get("action", request.action),
+        explain_level=rag_result.get("explain_level", request.explain_level),
+        duration_seconds=rag_result.get("duration_seconds"),
+        evidence_quality=rag_result.get("evidence_quality"),
+        follow_ups=rag_result.get("follow_ups"),
+        structured_data=rag_result.get("structured_data"),
     )
 
 
@@ -85,27 +97,30 @@ async def chat_sync(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/stream")
 async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     """Server-Sent Events streaming chat endpoint.
-    Yields events: retrieving, reranking, generating, token, citations, complete, [DONE].
+    Yields events: mode, retrieving, reranking, generating, token, citations, complete, [DONE].
     Saves complete conversation to SQLite asynchronously."""
     session_id = request.session_id or str(uuid.uuid4())
     
-    # Ensure chat session exists
-    res = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
-    session = res.scalars().first()
-    if not session:
-        session = ChatSession(id=session_id, title=request.question[:40] if request.question else "New Conversation")
-        db.add(session)
+    # Ensure chat session exists (fail-safe)
+    try:
+        res = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+        session = res.scalars().first()
+        if not session:
+            session = ChatSession(id=session_id, title=request.question[:40] if request.question else "New Conversation")
+            db.add(session)
+            await db.commit()
+            
+        user_msg_id = str(uuid.uuid4())
+        user_msg = ChatMessage(
+            id=user_msg_id,
+            session_id=session_id,
+            role=MessageRole.USER,
+            content=request.question,
+        )
+        db.add(user_msg)
         await db.commit()
-        
-    user_msg_id = str(uuid.uuid4())
-    user_msg = ChatMessage(
-        id=user_msg_id,
-        session_id=session_id,
-        role=MessageRole.USER,
-        content=request.question,
-    )
-    db.add(user_msg)
-    await db.commit()
+    except Exception as e:
+        logger.warning(f"Could not persist initial user chat session/message: {e}")
 
     async def sse_event_generator():
         accumulated_answer = []
@@ -116,9 +131,12 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                 question=request.question,
                 document_ids=request.document_ids,
                 session_id=session_id,
+                mode=request.mode or "quick",
+                action=request.action,
+                explain_level=request.explain_level,
+                target_language=request.target_language,
+                quiz_config=request.quiz_config,
             ):
-                # raw_chunk is a json line or SSE line from rag_service
-                # Parse to extract event and payload
                 try:
                     payload = json.loads(raw_chunk.strip())
                     event_type = payload.get("event")
@@ -126,7 +144,6 @@ async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                     
                     if event_type == "token" and event_data:
                         accumulated_answer.append(event_data)
-                        # Format as SSE for frontend
                         yield f"data: {json.dumps({'content': event_data, 'event': 'token'})}\n\n"
                     elif event_type == "citations" and event_data:
                         captured_citations = event_data

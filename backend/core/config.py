@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     # Ollama Local LLM Configuration
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen3:8b"
-    OLLAMA_TIMEOUT: int = 120
+    OLLAMA_TIMEOUT: int = 300
+    OLLAMA_NUM_CTX: int = 16384
+    OLLAMA_NUM_PREDICT: int = 4096
     
     # Optional alias for backward compatibility
     @property
@@ -44,8 +46,8 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 100
     CHUNK_MIN_SIZE: int = 100
     CHUNK_MAX_SIZE: int = 700
-    RETRIEVAL_TOP_K: int = 20
-    RERANK_TOP_K: int = 5
+    RETRIEVAL_TOP_K: int = 25
+    RERANK_TOP_K: int = 8
     RRF_K: int = 60
     CONFIDENCE_THRESHOLD: float = 0.3
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
