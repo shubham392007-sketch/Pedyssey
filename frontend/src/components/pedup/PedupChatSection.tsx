@@ -443,15 +443,23 @@ export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
                   />
                 )}
 
-                {/* Markdown Content */}
-                <div className="prose prose-sm max-w-none text-ink font-medium leading-relaxed">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={markdownComponents}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
+                {/* Markdown Content (cleaned of raw JSON if widget is rendered) */}
+                {(() => {
+                  const cleanedText = (hasFlashcards || hasQuiz)
+                    ? msg.content.replace(/```(?:json)?\s*[\s\S]*?```/gi, '').trim()
+                    : msg.content;
+                  if (!cleanedText) return null;
+                  return (
+                    <div className="prose prose-sm max-w-none text-ink font-medium leading-relaxed">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={markdownComponents}
+                      >
+                        {cleanedText}
+                      </ReactMarkdown>
+                    </div>
+                  );
+                })()}
 
                 {/* Clickable Citations */}
                 {msg.citations && msg.citations.length > 0 && (
