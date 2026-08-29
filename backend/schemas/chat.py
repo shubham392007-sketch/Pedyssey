@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 
+
 class CitationSchema(BaseModel):
     document_id: str
     filename: str
@@ -12,21 +13,27 @@ class CitationSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ChatRequest(BaseModel):
     question: str
     document_ids: List[str]
     session_id: Optional[str] = None
+    stream: Optional[bool] = True
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class ChatResponse(BaseModel):
     answer: str
     confidence: float
+    confidence_level: Optional[str] = None
+    category: Optional[str] = None
     citations: List[CitationSchema]
     session_id: str
     message_id: str
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class ChatSessionResponse(BaseModel):
     id: str
@@ -37,15 +44,20 @@ class ChatSessionResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ChatMessageResponse(BaseModel):
     id: str
     session_id: str
     role: str
     content: str
+    confidence: Optional[float] = None
+    confidence_level: Optional[str] = None
+    category: Optional[str] = None
     citations: Optional[List[CitationSchema]] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class ChatHistoryResponse(BaseModel):
     session: ChatSessionResponse

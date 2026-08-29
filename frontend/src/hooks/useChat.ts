@@ -11,6 +11,7 @@ export const useAskQuestion = () => {
     setIsLoading(true);
     setStreaming(true, '');
     let incomingCitations: Citation[] = [];
+    let incomingConfidence: { score: number; level: string; category: string } | undefined;
     
     // Optimistically add user message
     addMessage({
@@ -31,6 +32,9 @@ export const useAskQuestion = () => {
         },
         (cites) => {
           incomingCitations = cites;
+        },
+        (conf) => {
+          incomingConfidence = conf;
         }
       );
       
@@ -39,6 +43,9 @@ export const useAskQuestion = () => {
         session_id: currentSessionId || 'new',
         role: 'assistant',
         content: streamResult.content,
+        confidence: streamResult.confidence ?? incomingConfidence?.score,
+        confidence_level: streamResult.confidence_level ?? incomingConfidence?.level,
+        category: streamResult.category ?? incomingConfidence?.category,
         citations: streamResult.citations && streamResult.citations.length > 0 ? streamResult.citations : incomingCitations,
         created_at: new Date().toISOString()
       });

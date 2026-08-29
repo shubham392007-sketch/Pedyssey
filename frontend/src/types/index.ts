@@ -33,6 +33,9 @@ export interface ChatMessage {
   session_id: string;
   role: 'user' | 'assistant';
   content: string;
+  confidence?: number;
+  confidence_level?: string;
+  category?: string;
   citations?: Citation[];
   created_at: string;
 }

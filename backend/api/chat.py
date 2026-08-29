@@ -73,6 +73,8 @@ async def chat_sync(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     return ChatResponse(
         answer=answer,
         confidence=confidence,
+        confidence_level=rag_result.get("confidence_level"),
+        category=rag_result.get("category"),
         citations=citation_objs,
         session_id=session_id,
         message_id=assistant_msg_id,

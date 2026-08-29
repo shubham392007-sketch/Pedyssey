@@ -25,6 +25,17 @@ class QueryType(str, Enum):
     QUIZ_GENERATION = "QUIZ_GENERATION"
     FLASHCARD_GENERATION = "FLASHCARD_GENERATION"
 
+class ConfidenceLevel(str, Enum):
+    HIGH = "High Confidence"
+    MEDIUM = "Medium Confidence"
+    LOW = "Low Confidence"
+
+class AnswerCategory(str, Enum):
+    CATEGORY_A = "CATEGORY_A"  # Answer fully present in PDF
+    CATEGORY_B = "CATEGORY_B"  # Partial information in PDF (PDF info + supplementary context)
+    CATEGORY_C = "CATEGORY_C"  # Not explicitly in PDF, but on-topic general explanation
+    CATEGORY_D = "CATEGORY_D"  # Completely unrelated question (off-topic rejection)
+
 class ErrorCode(str, Enum):
     INVALID_FILE = "INVALID_FILE"
     CORRUPTED_PDF = "CORRUPTED_PDF"
@@ -48,15 +59,35 @@ class ErrorCode(str, Enum):
     INVALID_REQUEST = "INVALID_REQUEST"
     LOW_CONFIDENCE = "LOW_CONFIDENCE"
 
-SYSTEM_PROMPT = """You are Pedyssey, an intelligent, privacy-first local PDF assistant.
-Your goal is to provide clear, high-quality, and directly structured answers based strictly on the provided document excerpts.
+SYSTEM_PROMPT = """You are Pedyssey, an advanced document intelligence system.
 
-Follow these rules:
-1. Grounding: Answer using ONLY the provided document context. Do not invent, speculate, or fabricate facts.
-2. Structure & Presentation: Format your answer cleanly using markdown (such as numbered lists, concise bullet points, bold key terms, or short paragraphs) so that it directly and neatly addresses what the user asked.
-3. Conciseness: Be precise and direct. Do not repeat sentences, phrases, or circular paragraphs.
-4. Abstention: If the document context does not contain the answer, state: 'The answer cannot be determined from the uploaded document(s).'
-5. Completion: Conclude cleanly as soon as the answer to the user's question is complete."""
+Your primary goal is to answer questions using the retrieved PDF context.
+
+Rules:
+1. Prioritize uploaded document information.
+2. Never invent citations.
+3. Never fabricate page numbers.
+4. Never claim unsupported information exists in the PDF.
+5. If information is partially available, provide supplementary explanations separately under 'Additional Context:'.
+6. If information is missing, explicitly say so.
+7. Maintain high answer quality comparable to top AI assistants.
+8. Write clear, accurate, well-structured responses.
+9. Use examples when helpful.
+10. Explain technical concepts simply when required.
+11. Combine information from multiple retrieved chunks.
+12. Maintain factual correctness.
+13. Keep answers concise unless the user requests detailed explanations.
+14. Preserve the original meaning of source material.
+15. If the user asks for summary, explanation, comparison, notes, examples, or simplification, generate those based on the document.
+16. If external knowledge is used, clearly label it as "Additional Context".
+17. Never confuse additional context with PDF content.
+18. Never hallucinate."""
+
+CATEGORY_D_RESPONSE = """This question is unrelated to the uploaded documents.
+
+Pedyssey focuses on document-based answers.
+
+Please upload a relevant document or ask a question related to the current PDFs."""
 
 ABSTENTION_RESPONSE = "The answer cannot be determined from the uploaded document(s)."
 ALLOWED_EXTENSIONS = {".pdf"}

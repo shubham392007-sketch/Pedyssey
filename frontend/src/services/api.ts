@@ -44,6 +44,9 @@ export const documentApi = {
 export interface StreamResult {
   content: string;
   citations: Citation[];
+  confidence?: number;
+  confidence_level?: string;
+  category?: string;
 }
 
 export const chatApi = {
@@ -61,7 +64,8 @@ export const chatApi = {
     documentIds: string[],
     sessionId?: string,
     onMessage?: (text: string) => void,
-    onCitations?: (citations: Citation[]) => void
+    onCitations?: (citations: Citation[]) => void,
+    onConfidence?: (conf: { score: number; level: string; category: string }) => void
   ): Promise<StreamResult> => {
     const response = await fetch('/api/v1/chat/ask', {
       method: 'POST',
@@ -78,6 +82,9 @@ export const chatApi = {
     let done = false;
     let fullContent = '';
     let citations: Citation[] = [];
+    let confScore: number | undefined;
+    let confLevel: string | undefined;
+    let category: string | undefined;
 
     while (!done) {
       const { value, done: readerDone } = await reader.read();
@@ -91,6 +98,12 @@ export const chatApi = {
             if (dataStr === '[DONE]') continue;
             try {
               const data = JSON.parse(dataStr);
+              if (data.event === 'confidence' && data.data) {
+                confScore = data.data.score;
+                confLevel = data.data.level;
+                category = data.data.category;
+                onConfidence?.(data.data);
+              }
               if (data.content) {
                 fullContent += data.content;
                 onMessage?.(fullContent);
@@ -106,7 +119,13 @@ export const chatApi = {
         }
       }
     }
-    return { content: fullContent, citations };
+    return {
+      content: fullContent,
+      citations,
+      confidence: confScore,
+      confidence_level: confLevel,
+      category,
+    };
   }
 };
 
