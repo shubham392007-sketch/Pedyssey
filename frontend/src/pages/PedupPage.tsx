@@ -13,6 +13,7 @@ import type { Document, Citation } from '../types';
 
 export const PedupPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ASK' | 'INSIGHTS' | 'DOCUMENTS'>('ASK');
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
   const { data: documents = [], refetch } = useDocuments();
   const {
@@ -68,27 +69,50 @@ export const PedupPage: React.FC = () => {
       />
 
       {/* Main Workspace Container */}
-      <main className="flex-1 p-3 md:p-5 flex gap-4 md:gap-5 overflow-hidden">
-        {/* ASK Workspace: 2-Column Layout */}
+      <main className="flex-1 p-3 md:p-5 flex gap-3 md:gap-4 overflow-hidden">
+        {/* ASK Workspace: Dynamic 1 or 2 Column Layout */}
         {activeTab === 'ASK' && (
           <>
             {/* Left Column: Upload & Manage Documents Sidebar */}
-            <PedupDocumentsSidebar
-              documents={documents}
-              selectedDocIds={selectedDocIds}
-              activeDocId={activeDocId}
-              onToggleSelect={toggleSelect}
-              onSelectAll={selectAll}
-              onDeselectAll={deselectAll}
-              onSetActive={setActiveDoc}
-              onOpenDetails={(doc) => setSelectedDocForDetails(doc)}
-              onRefresh={refetch}
-            />
+            {isSidebarOpen ? (
+              <PedupDocumentsSidebar
+                documents={documents}
+                selectedDocIds={selectedDocIds}
+                activeDocId={activeDocId}
+                onToggleSelect={toggleSelect}
+                onSelectAll={selectAll}
+                onDeselectAll={deselectAll}
+                onSetActive={setActiveDoc}
+                onOpenDetails={(doc) => setSelectedDocForDetails(doc)}
+                onRefresh={refetch}
+                onClose={() => setIsSidebarOpen(false)}
+              />
+            ) : (
+              <aside className="hidden sm:flex flex-col justify-start shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(true)}
+                  title="Open Documents Sidebar"
+                  className="px-3 py-3 rounded-[20px] bg-[#FAF6EB]/90 hover:bg-[#FAF6EB] backdrop-blur-md border-2 border-ink shadow-[3px_3px_0px_#1C1C1C] hover:shadow-[4px_4px_0px_#1C1C1C] text-ink font-black flex flex-col items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-lime border border-ink flex items-center justify-center shadow-xs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 text-ink">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                  <span className="[writing-mode:vertical-lr] rotate-180 uppercase tracking-widest text-[10px] font-black text-ink/80 py-1">
+                    Vault ({documents.length})
+                  </span>
+                </button>
+              </aside>
+            )}
 
             {/* Right Column: Chat & Question Answering */}
             <section className="flex-1 flex gap-4 overflow-hidden h-full">
               <PedupChatSection
                 onCitationClick={handleCitationClick}
+                isSidebarOpen={isSidebarOpen}
+                onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
               />
 
               {/* Right Document Viewer Drawer */}

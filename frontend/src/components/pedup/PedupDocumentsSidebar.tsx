@@ -15,6 +15,7 @@ interface PedupDocumentsSidebarProps {
   onSetActive: (id: string) => void;
   onOpenDetails: (doc: Document) => void;
   onRefresh?: () => void;
+  onClose?: () => void;
 }
 
 export const PedupDocumentsSidebar: React.FC<PedupDocumentsSidebarProps> = ({
@@ -27,6 +28,7 @@ export const PedupDocumentsSidebar: React.FC<PedupDocumentsSidebarProps> = ({
   onSetActive,
   onOpenDetails,
   onRefresh,
+  onClose,
 }) => {
   const uploadMut = useUploadDocument();
   const processMut = useProcessDocument();
@@ -153,13 +155,26 @@ export const PedupDocumentsSidebar: React.FC<PedupDocumentsSidebarProps> = ({
 
   return (
     <aside className="w-80 lg:w-[340px] bg-[#FAF6EB]/60 backdrop-blur-xl rounded-[28px] border-2 border-ink shadow-[5px_5px_0px_#1C1C1C] p-4 md:p-5 flex flex-col h-full overflow-hidden select-none shrink-0 transition-all">
-      {/* Title */}
-      <div className="mb-3">
+      {/* Title + Collapse Button */}
+      <div className="mb-3 flex items-center justify-between">
         <h3 className="text-xs font-black tracking-wider uppercase text-ink flex items-center gap-1.5">
           <span>UPLOAD &amp;</span>
           <span className="font-script lowercase text-base font-normal -rotate-2 text-ink">manage</span>
           <span>PDFS</span>
         </h3>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            title="Collapse Sidebar to expand chat"
+            className="p-1 px-2 rounded-lg bg-white/80 hover:bg-cream border border-ink/40 hover:border-ink text-ink shadow-[1px_1px_0px_#1C1C1C] transition-all flex items-center gap-1 text-[10px] font-black uppercase tracking-wider"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            <span>Hide</span>
+          </button>
+        )}
       </div>
 
       {/* Drag & Drop Upload Card (Glassmorphism) */}

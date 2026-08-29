@@ -13,10 +13,14 @@ import type { Citation, ResponseMode, ActionMode, ExplainLevel } from '../../typ
 
 interface PedupChatSectionProps {
   onCitationClick: (citation: Citation) => void;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
   onCitationClick,
+  isSidebarOpen,
+  onToggleSidebar,
 }) => {
   const { messages, isStreaming, streamingContent, clearMessages } = useChatStore();
   const { documents, selectedDocIds, activeDocId } = useDocumentStore();
@@ -236,6 +240,23 @@ export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
       {/* Top Header */}
       <div className="h-14 px-5 border-b-2 border-ink flex items-center justify-between bg-white/60 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2.5">
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              title={isSidebarOpen ? "Hide Documents Sidebar (View Chat in Full Width)" : "Show Documents Sidebar"}
+              className={`p-1.5 px-2.5 rounded-xl border border-ink text-ink text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[1.5px_1.5px_0px_#1C1C1C] ${
+                !isSidebarOpen ? 'bg-lime text-ink animate-pulse' : 'bg-cream hover:bg-lime/70 text-ink'
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+              <span>{isSidebarOpen ? 'Hide Vault' : 'Open Vault'}</span>
+            </button>
+          )}
+
           <div className="w-7 h-7 rounded-xl bg-lime border-1.5 border-ink flex items-center justify-center font-black text-xs text-ink shadow-[1.5px_1.5px_0px_#1C1C1C]">
             P
           </div>
