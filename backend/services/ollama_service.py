@@ -45,8 +45,8 @@ class OllamaService:
     def __init__(self):
         self.base_url = settings.OLLAMA_BASE_URL.rstrip('/')
         self.model = settings.OLLAMA_MODEL
-        self.timeout_seconds = float(settings.OLLAMA_TIMEOUT)
-        self.timeout = httpx.Timeout(self.timeout_seconds, connect=3.0)
+        self.timeout_seconds = max(float(getattr(settings, 'OLLAMA_TIMEOUT', 180)), 180.0)
+        self.timeout = httpx.Timeout(self.timeout_seconds, connect=10.0)
 
     def get_base_url(self) -> str:
         return self.base_url
@@ -60,7 +60,7 @@ class OllamaService:
     async def check_health(self) -> tuple[bool, str]:
         """Check if Ollama server is reachable."""
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(3.0, connect=2.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=3.0)) as client:
                 res = await client.get(f"{self.base_url}/api/tags")
                 if res.status_code == 200:
                     return True, "reachable"
@@ -74,7 +74,7 @@ class OllamaService:
     async def list_models(self) -> List[Dict[str, Any]]:
         """Retrieve all installed models in the local Ollama instance."""
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=3.0)) as client:
                 res = await client.get(f"{self.base_url}/api/tags")
                 if res.status_code == 200:
                     data = res.json()
@@ -144,6 +144,7 @@ class OllamaService:
                 "repeat_penalty": 1.18,
                 "repeat_last_n": 128,
                 "num_ctx": 4096,
+                "num_predict": 512,
             }
         }
 
@@ -192,6 +193,7 @@ class OllamaService:
                 "repeat_penalty": 1.18,
                 "repeat_last_n": 128,
                 "num_ctx": 4096,
+                "num_predict": 512,
             }
         }
 

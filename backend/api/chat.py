@@ -253,3 +253,49 @@ async def delete_session(session_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     
     return {"message": f"Chat session {session_id} deleted successfully."}
+
+
+@router.post("/debug-retrieval")
+async def debug_retrieval(request: ChatRequest):
+    """Development/debug inspector endpoint: returns ranked chunks with FAISS, BM25, and Cross-Encoder scores."""
+    from services import retrieval_service, reranking_service
+    
+    retrieved_chunks = retrieval_service.retrieve(
+        query=request.question,
+        top_k=20,
+        document_ids=request.document_ids,
+    )
+    
+    reranked_chunks = reranking_service.rerank(
+        query=request.question,
+        chunks=retrieved_chunks,
+        top_k=10,
+    )
+    
+    results = []
+    for rank, chunk in enumerate(reranked_chunks, start=1):
+        results.append({
+            "rank": rank,
+            "chunk_id": chunk.get("chunk_id"),
+            "document_id": chunk.get("document_id"),
+            "filename": chunk.get("filename"),
+            "page_start": chunk.get("page_start"),
+            "page_end": chunk.get("page_end"),
+            "section": chunk.get("section"),
+            "rrf_score": chunk.get("score"),
+            "faiss_rank": chunk.get("faiss_rank"),
+            "faiss_score": chunk.get("faiss_score"),
+            "bm25_rank": chunk.get("bm25_rank"),
+            "bm25_score": chunk.get("bm25_score"),
+            "reranker_score": chunk.get("reranker_score"),
+            "raw_reranker_score": chunk.get("raw_reranker_score"),
+            "snippet": chunk.get("text", "")[:200] + ("..." if len(chunk.get("text", "")) > 200 else ""),
+        })
+        
+    return {
+        "question": request.question,
+        "total_candidates": len(retrieved_chunks),
+        "total_reranked": len(results),
+        "results": results,
+    }
+

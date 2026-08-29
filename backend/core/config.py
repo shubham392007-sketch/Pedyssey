@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     
     # Ollama Local LLM Configuration
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen3:4b"
+    OLLAMA_MODEL: str = "qwen3:8b"
     OLLAMA_TIMEOUT: int = 120
     
     # Optional alias for backward compatibility

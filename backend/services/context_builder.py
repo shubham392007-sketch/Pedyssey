@@ -9,20 +9,22 @@ class ContextBuilder:
     def build_context(self, chunks: List[dict]) -> str:
         """Format evidence chunks into structured context with delimiters for Ollama.
         
-        Example format:
+        Example format (Section 18):
         SOURCE 1
-        Document: Transformer_Notes.pdf
-        Pages: 12-14
+        Document: research.pdf
+        Pages: 42-43
+        Chunk ID: doc_001_chunk_143
 
-        [Text]
+        [retrieved text]
 
         --------------------------------
 
         SOURCE 2
-        Document: AI_Research.pdf
-        Pages: 20-21
+        Document: research.pdf
+        Pages: 50-51
+        Chunk ID: doc_001_chunk_159
 
-        [Text]
+        [retrieved text]
         """
         if not chunks:
             return "No relevant document context found."
@@ -32,6 +34,7 @@ class ContextBuilder:
             filename = chunk.get('filename', 'document.pdf')
             page_start = chunk.get('page_start', 1)
             page_end = chunk.get('page_end', page_start)
+            chunk_id = chunk.get('chunk_id', f'chunk_{i}')
             
             pages_str = f"{page_start}" if page_start == page_end else f"{page_start}-{page_end}"
             text = chunk.get('text', '').strip()
@@ -39,6 +42,7 @@ class ContextBuilder:
             part = f"""SOURCE {i}
 Document: {filename}
 Pages: {pages_str}
+Chunk ID: {chunk_id}
 
 {text}"""
             context_parts.append(part)
@@ -65,15 +69,15 @@ Pages: {pages_str}
             category_instruction = (
                 "Instructions:\n"
                 "1. The exact answer is not explicitly available in the retrieved excerpts, though the subject is related to the document domain.\n"
-                "2. State explicitly: 'This information is not explicitly available in the uploaded documents.'\n"
-                "3. Follow with: 'Based on general knowledge related to the document topic:' and provide a helpful, factual explanation."
+                "2. State explicitly: 'The uploaded documents do not contain sufficient information to answer this question directly.'\n"
+                "3. Follow with: 'Additional Context:' and provide a helpful, factual explanation."
             )
         else:
             # Category A: Fully in PDF
             category_instruction = (
                 "Instructions:\n"
-                "1. Answer the user's question directly, clearly, and accurately based strictly on the retrieved document context.\n"
-                "2. Structure your response with clean markdown (bullet points, bold key terms, or structured sections).\n"
+                "1. Answer the user's question directly, clearly, and accurately based strictly on the retrieved document context across all referenced pages.\n"
+                "2. Structure your response with clean markdown (headings, bullet points, bold key terms, or structured sections).\n"
                 "3. Maintain high answer quality comparable to a research assistant. Avoid circular repetition."
             )
 
@@ -82,7 +86,7 @@ Pages: {pages_str}
 {context}
 ========================================
 
-Question:
+USER QUESTION:
 {question}
 
 {category_instruction}"""

@@ -236,6 +236,17 @@ async def _process_document_background(document_id: str):
                         page["section"] = sp.section
                         break
 
+            # Clean previous vectors and DB chunks if reprocessing
+            try:
+                vector_store.remove_by_document(document_id)
+                vector_store.save()
+                bm25_service.remove_by_document(document_id)
+                bm25_service.save()
+                await db.execute(delete(Chunk).where(Chunk.document_id == document_id))
+                await db.commit()
+            except Exception as clean_err:
+                logger.warning(f"Cleanup before re-indexing {document_id}: {clean_err}")
+
             # Stage: CHUNKING
             _processing_progress[document_id]["stage"] = "CHUNKING"
             _processing_progress[document_id]["progress"] = 55
@@ -288,13 +299,11 @@ async def _process_document_background(document_id: str):
                 for c in chunks
             ]
 
-            vector_store.add(embeddings, chunk_metadata)
-            vector_store.save()
-
             bm25_chunks = [
                 {
                     "chunk_id": c.chunk_id,
                     "document_id": c.document_id,
+                    "filename": doc.filename,
                     "text": c.text,
                     "page_start": c.page_start,
                     "page_end": c.page_end,
@@ -302,6 +311,17 @@ async def _process_document_background(document_id: str):
                 }
                 for c in chunks
             ]
+
+            # Strict Index Validation (Section 25)
+            if not (len(chunks) == len(embeddings) == len(chunk_metadata) == len(bm25_chunks)):
+                raise ValueError(
+                    f"Index validation failed: {len(chunks)} chunks != {len(embeddings)} embeddings != "
+                    f"{len(chunk_metadata)} FAISS metadata != {len(bm25_chunks)} BM25 entries."
+                )
+
+            vector_store.add(embeddings, chunk_metadata)
+            vector_store.save()
+
             bm25_service.add_documents(bm25_chunks)
             bm25_service.save()
 
@@ -313,7 +333,11 @@ async def _process_document_background(document_id: str):
                 "total_pages": total_pages, "progress": 100,
             }
             await db.commit()
-            logger.info(f"Document {document_id} processed successfully. {len(chunks)} chunks created.")
+            logger.info(
+                f"Document {document_id} ({doc.filename}) processed successfully: "
+                f"{len(chunks)} chunks, {len(embeddings)} embeddings, {len(chunk_metadata)} FAISS vectors, "
+                f"{len(bm25_chunks)} BM25 docs across {total_pages} pages."
+            )
 
         except Exception as e:
             logger.error(f"Error processing document {document_id}: {e}", exc_info=True)
@@ -387,3 +411,42 @@ async def serve_file(document_id: str, db: AsyncSession = Depends(get_db)):
         filename=doc.filename,
         media_type="application/pdf",
     )
+
+
+@router.post("/{document_id}/reindex")
+async def reindex_document(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Rebuild index for an existing document from scratch."""
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    doc = result.scalars().first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    doc.status = DocumentStatus.UPLOADED
+    await db.commit()
+
+    background_tasks.add_task(_process_document_background, document_id)
+    return {"message": f"Reindexing started for document {document_id}.", "document_id": document_id}
+
+
+@router.post("/reindex-all")
+async def reindex_all_documents(
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Rebuild indexes for all uploaded documents."""
+    result = await db.execute(select(Document))
+    docs = result.scalars().all()
+    
+    doc_ids = []
+    for doc in docs:
+        doc.status = DocumentStatus.UPLOADED
+        doc_ids.append(doc.id)
+        background_tasks.add_task(_process_document_background, doc.id)
+    await db.commit()
+
+    return {"message": f"Reindexing started for {len(doc_ids)} document(s).", "document_ids": doc_ids}
+

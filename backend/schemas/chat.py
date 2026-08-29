@@ -16,7 +16,7 @@ class CitationSchema(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
-    document_ids: List[str]
+    document_ids: Optional[List[str]] = None
     session_id: Optional[str] = None
     stream: Optional[bool] = True
 
