@@ -90,6 +90,7 @@ export const PedupModeSelector: React.FC<PedupModeSelectorProps> = ({
   onTriggerQuickAction,
 }) => {
   const [showExplore, setShowExplore] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const primaryModes: { id: ResponseMode; label: string; icon: React.ReactNode; tooltip: string }[] = [
     { id: 'quick', label: 'QUICK', icon: <QuickIcon />, tooltip: 'Fast concise answers with page citations' },
@@ -107,10 +108,46 @@ export const PedupModeSelector: React.FC<PedupModeSelectorProps> = ({
   ];
 
   const isExploreActive = exploreModes.some((m) => m.id === selectedMode);
+  const activeModeObj = primaryModes.find((m) => m.id === selectedMode) || exploreModes.find((m) => m.id === selectedMode);
+
+  if (isCollapsed) {
+    return (
+      <div className="w-full select-none animate-in fade-in duration-200">
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-[#FAF6EB]/90 border border-ink/40 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-ink/60">
+              Mode:
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-lime border border-ink text-[10px] font-black text-ink uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+              {activeModeObj?.icon}
+              <span>{selectedMode.replace('_', ' ')}</span>
+            </span>
+            {selectedAction && (
+              <span className="px-2 py-0.5 rounded-full bg-[#F7D4BE] border border-ink text-[9px] font-black text-ink uppercase tracking-wide">
+                {selectedAction}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(false)}
+            title="Slide down modes bar to change mode or select tools"
+            className="px-3 py-1 rounded-full bg-white hover:bg-lime border border-ink text-[10px] font-black text-ink uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[1px_1px_0px_#1C1C1C]"
+          >
+            <span>Slide Down Modes</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-ink">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full space-y-2 select-none">
-      {/* Top Bar: Primary Modes + Explore Dropdown Trigger */}
+    <div className="w-full space-y-2 select-none animate-in fade-in duration-200">
+      {/* Top Bar: Primary Modes + Explore Dropdown Trigger + Slide Up button */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Primary Modes */}
@@ -167,12 +204,26 @@ export const PedupModeSelector: React.FC<PedupModeSelectorProps> = ({
           </button>
         </div>
 
-        {/* Current Active Mode Hint */}
-        <div className="hidden md:flex items-center gap-1 text-[10px] font-bold text-ink/60 uppercase tracking-wider">
-          <span>Mode:</span>
-          <span className="text-ink font-black bg-cream px-2 py-0.5 rounded border border-ink/30">
-            {selectedMode.replace('_', ' ')}
-          </span>
+        {/* Right Side Controls: Active Mode Badge + Slide Up Collapse Button */}
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-1 text-[10px] font-bold text-ink/60 uppercase tracking-wider">
+            <span>Mode:</span>
+            <span className="text-ink font-black bg-cream px-2 py-0.5 rounded border border-ink/30">
+              {selectedMode.replace('_', ' ')}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(true)}
+            title="Slide up to increase chat viewing area"
+            className="px-2.5 py-1 rounded-full bg-white hover:bg-lime border border-ink text-[10px] font-black text-ink uppercase tracking-wider transition-all flex items-center gap-1 shadow-xs"
+          >
+            <span>Slide Up</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-ink">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </button>
         </div>
       </div>
 
