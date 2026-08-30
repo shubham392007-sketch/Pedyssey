@@ -65,11 +65,13 @@ from api.documents import router as documents_router
 from api.chat import router as chat_router
 from api.system import router as system_router
 from api.settings import router as settings_router
+from api.lens import router as lens_router
 
 app.include_router(documents_router, prefix=settings.API_PREFIX)
 app.include_router(chat_router, prefix=settings.API_PREFIX)
 app.include_router(system_router, prefix=settings.API_PREFIX)
 app.include_router(settings_router, prefix=settings.API_PREFIX)
+app.include_router(lens_router, prefix=settings.API_PREFIX)
 
 # Mount static files for serving documents (only if directory exists)
 docs_dir = Path(settings.DOCUMENTS_DIR)

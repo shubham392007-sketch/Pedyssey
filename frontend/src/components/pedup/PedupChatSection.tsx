@@ -6,6 +6,7 @@ import { useDocumentStore } from '../../stores/useDocumentStore';
 import { useAskQuestion } from '../../hooks/useChat';
 import { AiSparkIcon, CitationIcon } from '../common/SvgIcons';
 import { PedupModeSelector } from './PedupModeSelector';
+import { LensContextBadge } from '../lens/LensContextBadge';
 import { FlashcardsWidget } from './widgets/FlashcardsWidget';
 import { QuizWidget } from './widgets/QuizWidget';
 import { VerificationWidget } from './widgets/VerificationWidget';
@@ -15,12 +16,14 @@ interface PedupChatSectionProps {
   onCitationClick: (citation: Citation) => void;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
+  onOpenLens?: () => void;
 }
 
 export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
   onCitationClick,
   isSidebarOpen,
   onToggleSidebar,
+  onOpenLens,
 }) => {
   const { messages, isStreaming, streamingContent, clearMessages } = useChatStore();
   const { documents, selectedDocIds, activeDocId } = useDocumentStore();
@@ -705,7 +708,11 @@ export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
           explainLevel={explainLevel}
           onSelectExplainLevel={setExplainLevel}
           onTriggerQuickAction={handleQuickAction}
+          onOpenLens={onOpenLens}
         />
+
+        {/* Lens Context Badge (shown when a text selection is active) */}
+        <LensContextBadge />
 
         {/* Input Form */}
         <form

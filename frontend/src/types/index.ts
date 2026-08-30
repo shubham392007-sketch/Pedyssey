@@ -135,3 +135,15 @@ export interface LocalModelItem {
 export interface LocalModelsResponse {
   models: LocalModelItem[];
 }
+
+export type LensAction = 
+  | 'ask' | 'explain' | 'analyze' | 'verify' 
+  | 'compare' | 'find_evidence' | 'summarize' 
+  | 'translate' | 'create_notes';
+
+export interface LensSelection {
+  text: string;
+  page: number;
+  documentId: string;
+  rect: { top: number; left: number; width: number; height: number };
+}

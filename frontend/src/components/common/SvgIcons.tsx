@@ -219,3 +219,23 @@ export const XSvg: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
   </svg>
 );
+
+export const LensIcon: React.FC<IconProps> = ({ className = "w-4 h-4", size }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <circle cx="11" cy="11" r="7" />
+    <line x1="21" y1="21" x2="16.5" y2="16.5" />
+    <circle cx="11" cy="11" r="3" strokeWidth="1.5" strokeDasharray="2 2" />
+    <path d="M11 5v1.5m0 9V17m-6-6h1.5m9 0H17" strokeWidth="1.5" />
+  </svg>
+);
+

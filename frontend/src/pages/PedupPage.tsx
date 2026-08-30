@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { PedupTopBar } from '../components/pedup/PedupTopBar';
 import { PedupDocumentsSidebar } from '../components/pedup/PedupDocumentsSidebar';
 import { PedupChatSection } from '../components/pedup/PedupChatSection';
@@ -6,10 +6,15 @@ import { PedupDocumentViewer } from '../components/pedup/PedupDocumentViewer';
 import { PedupInsightsPanel } from '../components/pedup/PedupInsightsPanel';
 import { PedupDocumentsView } from '../components/pedup/PedupDocumentsView';
 import { PedupCoverageModal } from '../components/pedup/PedupCoverageModal';
+import { LensToolbar } from '../components/lens/LensToolbar';
 import { useDocuments } from '../hooks/useDocuments';
 import { useDocumentStore } from '../stores/useDocumentStore';
 import { useSystemStatus } from '../hooks/useSystemStatus';
+import { useLensAction } from '../hooks/useLensAction';
+import { useLensKeyboard } from '../hooks/useLensKeyboard';
+import { useLensStore } from '../stores/useLensStore';
 import type { Document, Citation } from '../types';
+import type { LensAction } from '../stores/useLensStore';
 
 export const PedupPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ASK' | 'INSIGHTS' | 'DOCUMENTS'>('ASK');
@@ -29,8 +34,27 @@ export const PedupPage: React.FC = () => {
   const [selectedDocForDetails, setSelectedDocForDetails] = useState<Document | null>(null);
   const [showViewer, setShowViewer] = useState<boolean>(false);
   const [viewerPage, setViewerPage] = useState<number>(1);
+  const viewerSectionRef = useRef<HTMLElement | null>(null);
+
+  const { executeLensAction } = useLensAction();
+  useLensKeyboard();
 
   const modelName = status?.llm_model?.detail?.split("'")[1] || 'qwen3:8b';
+
+  const handleLensAction = (action: LensAction, askQuestion?: string) => {
+    const docIds = selectedDocIds.size > 0 ? Array.from(selectedDocIds) : (activeDocId ? [activeDocId] : []);
+    executeLensAction(action, docIds, 'quick', askQuestion);
+  };
+
+  const handleOpenLensDirectly = () => {
+    if (!showViewer) {
+      if (!activeDocId && documents.length > 0) {
+        setActiveDoc(documents[0].id);
+      }
+      setShowViewer(true);
+    }
+    useLensStore.getState().openLensDirect();
+  };
 
   const handleCitationClick = (citation: Citation) => {
     setActiveDoc(citation.document_id);
@@ -90,11 +114,12 @@ export const PedupPage: React.FC = () => {
             )}
 
             {/* Right Column: Chat & Question Answering */}
-            <section className="flex-1 flex gap-4 overflow-hidden h-full">
+            <section ref={viewerSectionRef} className="flex-1 flex gap-4 overflow-hidden h-full relative">
               <PedupChatSection
                 onCitationClick={handleCitationClick}
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                onOpenLens={handleOpenLensDirectly}
               />
 
               {/* Right Document Viewer Drawer */}
@@ -102,8 +127,14 @@ export const PedupPage: React.FC = () => {
                 <PedupDocumentViewer
                   initialPage={viewerPage}
                   onClose={() => setShowViewer(false)}
+                  onLensAction={handleLensAction}
                 />
               )}
+
+              {/* Lens Floating Toolbar (appears near selection) */}
+              <LensToolbar
+                onAction={handleLensAction}
+              />
             </section>
           </>
         )}

@@ -70,6 +70,8 @@ const VerifyIcon: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5
   </svg>
 );
 
+import { LensIcon } from '../common/SvgIcons';
+
 interface PedupModeSelectorProps {
   selectedMode: ResponseMode;
   onSelectMode: (mode: ResponseMode) => void;
@@ -78,6 +80,7 @@ interface PedupModeSelectorProps {
   explainLevel: ExplainLevel;
   onSelectExplainLevel: (level: ExplainLevel) => void;
   onTriggerQuickAction?: (action: ActionMode, promptText: string) => void;
+  onOpenLens?: () => void;
 }
 
 export const PedupModeSelector: React.FC<PedupModeSelectorProps> = ({
@@ -88,6 +91,7 @@ export const PedupModeSelector: React.FC<PedupModeSelectorProps> = ({
   explainLevel,
   onSelectExplainLevel,
   onTriggerQuickAction,
+  onOpenLens,
 }) => {
   const [showExplore, setShowExplore] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -129,17 +133,29 @@ export const PedupModeSelector: React.FC<PedupModeSelectorProps> = ({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(false)}
-            title="Slide down modes bar to change mode or select tools"
-            className="px-3 py-1 rounded-full bg-white hover:bg-lime border border-ink text-[10px] font-black text-ink uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[1px_1px_0px_#1C1C1C]"
-          >
-            <span>Slide Down Modes</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-ink">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenLens}
+              title="Open Pedyssey Lens for selection-aware AI analysis"
+              className="px-2.5 py-1 rounded-full bg-lime hover:bg-lime-400 border border-ink text-[10px] font-black text-ink uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[1px_1px_0px_#1C1C1C] active:scale-95"
+            >
+              <LensIcon className="w-3.5 h-3.5 text-ink" />
+              <span>Lens</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(false)}
+              title="Slide down modes bar to change mode or select tools"
+              className="px-3 py-1 rounded-full bg-white hover:bg-lime border border-ink text-[10px] font-black text-ink uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[1px_1px_0px_#1C1C1C]"
+            >
+              <span>Slide Down Modes</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-ink">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -204,8 +220,18 @@ export const PedupModeSelector: React.FC<PedupModeSelectorProps> = ({
           </button>
         </div>
 
-        {/* Right Side Controls: Active Mode Badge + Slide Up Collapse Button */}
+        {/* Right Side Controls: Lens Button + Active Mode Badge + Slide Up Collapse Button */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenLens}
+            title="Open Pedyssey Lens for selection-aware AI analysis"
+            className="px-3 py-1 rounded-full bg-lime hover:bg-lime-400 border border-ink text-[10px] font-black text-ink uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[1.5px_1.5px_0px_#1C1C1C] active:scale-95"
+          >
+            <LensIcon className="w-3.5 h-3.5 text-ink" />
+            <span>Lens</span>
+          </button>
+
           <div className="hidden md:flex items-center gap-1 text-[10px] font-bold text-ink/60 uppercase tracking-wider">
             <span>Mode:</span>
             <span className="text-ink font-black bg-cream px-2 py-0.5 rounded border border-ink/30">
