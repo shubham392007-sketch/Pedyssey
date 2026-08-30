@@ -198,7 +198,7 @@ Generate an interactive {q_diff} difficulty quiz with {q_count} questions based 
 Output format MUST include a valid JSON block enclosed in ```json ... ``` with this exact structure:
 ```json
 [
-  {
+  {{
     "id": 1,
     "question": "Question text here?",
     "options": ["Option A", "Option B", "Option C", "Option D"],
@@ -206,7 +206,7 @@ Output format MUST include a valid JSON block enclosed in ```json ... ``` with t
     "explanation": "Detailed explanation grounded in the text",
     "page": 7,
     "topic": "Topic Name"
-  }
+  }}
 ]
 ```
 Ensure all questions have exactly 4 options and `correct_index` is an integer from 0 to 3.
@@ -445,17 +445,51 @@ Do not truncate or stop halfway; synthesize a complete, rigorous investigation g
         if not content:
             return None
         
-        # 1. Parse JSON blocks for Flashcards or Quizzes
-        json_match = re.search(r'```(?:json)?\s*(\[\s*\{.*?\}\s*\])\s*```', content, re.DOTALL)
-        if json_match:
-            try:
-                parsed_json = json.loads(json_match.group(1))
-                if action == ActionMode.FLASHCARDS.value or (isinstance(parsed_json, list) and "front" in parsed_json[0]):
-                    return {"type": "flashcards", "items": parsed_json}
-                if action == ActionMode.QUIZ.value or (isinstance(parsed_json, list) and "options" in parsed_json[0]):
-                    return {"type": "quiz", "questions": parsed_json}
-            except Exception as e:
-                logger.warning(f"Failed to parse structured JSON block: {e}")
+        # 1. Parse JSON blocks for Flashcards or Quizzes (fenced or raw)
+        json_matches = [
+            re.search(r'```(?:json)?\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```', content, re.DOTALL),
+            re.search(r'(\[\s*\{[\s\S]*?\}\s*\])', content, re.DOTALL)
+        ]
+        
+        for match in json_matches:
+            if match:
+                try:
+                    parsed_json = json.loads(match.group(1))
+                    if isinstance(parsed_json, list) and len(parsed_json) > 0:
+                        first = parsed_json[0]
+                        if isinstance(first, dict):
+                            # Flashcards detection
+                            if "front" in first or "back" in first or action == ActionMode.FLASHCARDS.value:
+                                return {"type": "flashcards", "items": parsed_json}
+                            
+                            # Quiz detection & normalization
+                            if "options" in first or "question" in first or action == ActionMode.QUIZ.value:
+                                normalized_questions = []
+                                for idx, q in enumerate(parsed_json):
+                                    if not isinstance(q, dict):
+                                        continue
+                                    opts = q.get("options") or q.get("choices") or q.get("answers") or []
+                                    c_idx = q.get("correct_index", q.get("answer_index", 0))
+                                    # Convert 1-indexed or string letters ('A', 'B') to 0-3 int
+                                    if isinstance(c_idx, str):
+                                        c_idx = ord(c_idx.upper()) - 65 if c_idx.upper() in 'ABCD' else 0
+                                    elif isinstance(c_idx, int) and c_idx >= 1 and c_idx > len(opts) - 1:
+                                        c_idx = c_idx - 1  # 1-indexed fallback
+                                    c_idx = max(0, min(len(opts) - 1 if opts else 3, int(c_idx)))
+                                    
+                                    normalized_questions.append({
+                                        "id": q.get("id", idx + 1),
+                                        "question": q.get("question", f"Question {idx + 1}"),
+                                        "options": opts if len(opts) >= 2 else ["Option A", "Option B", "Option C", "Option D"],
+                                        "correct_index": c_idx,
+                                        "explanation": q.get("explanation", ""),
+                                        "page": q.get("page", 1),
+                                        "topic": q.get("topic", "Core Concept")
+                                    })
+                                if normalized_questions:
+                                    return {"type": "quiz", "questions": normalized_questions}
+                except Exception as e:
+                    logger.debug(f"JSON parse attempt failed: {e}")
 
         # 2. Parse Verification Verdict
         if mode == ResponseMode.VERIFY.value or "### VERDICT:" in content:

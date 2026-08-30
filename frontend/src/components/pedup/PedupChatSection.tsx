@@ -374,9 +374,46 @@ export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
             timingLabel = `Answered in ${duration}`;
           }
 
-          const hasFlashcards = msg.structured_data?.type === 'flashcards' && msg.structured_data.items;
-          const hasQuiz = msg.structured_data?.type === 'quiz' && msg.structured_data.questions;
-          const hasVerification = msg.structured_data?.type === 'verification' && msg.structured_data.verdict;
+          // Extract structured data with client-side fallback parsing
+          let quizData = msg.structured_data?.type === 'quiz' ? msg.structured_data.questions : null;
+          let flashcardData = msg.structured_data?.type === 'flashcards' ? msg.structured_data.items : null;
+          let verificationVerdict = msg.structured_data?.type === 'verification' ? msg.structured_data.verdict : null;
+
+          if (!quizData && !flashcardData && msg.content) {
+            try {
+              const match = msg.content.match(/```(?:json)?\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/) || msg.content.match(/(\[\s*\{[\s\S]*?\}\s*\])/);
+              if (match) {
+                const parsed = JSON.parse(match[1]);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  if (parsed[0].options || parsed[0].question || msg.action === 'quiz') {
+                    quizData = parsed.map((q: any, idx: number) => {
+                      let cIdx = q.correct_index ?? q.answer_index ?? 0;
+                      if (typeof cIdx === 'string' && /^[A-D]$/i.test(cIdx)) {
+                        cIdx = cIdx.toUpperCase().charCodeAt(0) - 65;
+                      }
+                      return {
+                        id: q.id ?? idx + 1,
+                        question: q.question || `Question ${idx + 1}`,
+                        options: q.options || q.choices || ["Option A", "Option B", "Option C", "Option D"],
+                        correct_index: typeof cIdx === 'number' ? Math.max(0, Math.min(3, cIdx)) : 0,
+                        explanation: q.explanation || '',
+                        page: q.page || 1,
+                        topic: q.topic || 'Core Concept'
+                      };
+                    });
+                  } else if (parsed[0].front || parsed[0].back || msg.action === 'flashcards') {
+                    flashcardData = parsed;
+                  }
+                }
+              }
+            } catch {
+              // Ignore parse errors
+            }
+          }
+
+          const hasFlashcards = Boolean(flashcardData && flashcardData.length > 0);
+          const hasQuiz = Boolean(quizData && quizData.length > 0);
+          const hasVerification = Boolean(verificationVerdict);
 
           return (
             <div key={msg.id} className="flex items-start gap-3.5 max-w-2xl">
@@ -434,13 +471,13 @@ export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
 
                 {/* Structured Verification Badge (if in Verify mode) */}
                 {hasVerification && (
-                  <VerificationWidget verdict={msg.structured_data!.verdict!} />
+                  <VerificationWidget verdict={verificationVerdict!} />
                 )}
 
                 {/* Interactive Flashcards Widget (if present) */}
                 {hasFlashcards && (
                   <FlashcardsWidget
-                    cards={msg.structured_data!.items!}
+                    cards={flashcardData!}
                     onCitationClick={handleCitationPageNavigate}
                   />
                 )}
@@ -448,7 +485,7 @@ export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
                 {/* Interactive Quiz Widget (if present) */}
                 {hasQuiz && (
                   <QuizWidget
-                    questions={msg.structured_data!.questions!}
+                    questions={quizData!}
                     onCitationClick={handleCitationPageNavigate}
                   />
                 )}
