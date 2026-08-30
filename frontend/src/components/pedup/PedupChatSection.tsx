@@ -53,18 +53,28 @@ export const PedupChatSection: React.FC<PedupChatSectionProps> = ({
     }
     if (mode === 'deep_research') {
       return [
-        'Decomposing research query into multidimensional facets...',
-        'Broad hybrid candidate retrieval across all document pages...',
-        'Cross-Encoder neural reranking & cross-examining evidence...',
-        'Synthesizing comprehensive structured research report...',
+        'Understanding question & decomposing facets...',
+        'Searching document (Multi-pass retrieval across all pages)...',
+        'Analyzing evidence & grouping sections...',
+        'Cross-checking sections & experimental setup...',
+        'Generating comprehensive research report...',
+        'Checking completeness & verifying citations...',
       ];
     }
     if (mode === 'think') {
       return [
-        'Understanding query logic & identifying target claims...',
-        'Searching vector space & lexical indices for key evidence...',
-        'Cross-referencing evidence & evaluating multi-step rationale...',
-        'Formulating careful, reasoned synthesis...',
+        'Thinking through the document...',
+        'Expanding query & searching vector space across sections...',
+        'Cross-referencing evidence & evaluating multi-step logic...',
+        'Formulating reasoned synthesis with page citations...',
+      ];
+    }
+    if (mode === 'quick') {
+      return [
+        'Retrieving from your document...',
+        'Searching FAISS & BM25 indices across pages...',
+        'Cross-Encoder neural reranking top candidate passages...',
+        'Synthesizing direct grounded answer...',
       ];
     }
     if (mode === 'study') {

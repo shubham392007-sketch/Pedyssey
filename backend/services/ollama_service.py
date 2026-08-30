@@ -148,28 +148,31 @@ class OllamaService:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         num_predict: Optional[int] = None,
+        num_ctx: Optional[int] = None,
     ) -> str:
-        """Generate full response text using the local Ollama model."""
+        """Generate full response text using the local Ollama model with context adaptability and fallback."""
         target_model = await self._resolve_target_model(model)
         temp = temperature if temperature is not None else 0.1
         tp = top_p if top_p is not None else 0.9
+        ctx = num_predict if num_ctx is None else num_ctx
+        ctx_val = num_ctx if num_ctx is not None else self.num_ctx
         pred = num_predict if num_predict is not None else self.num_predict
 
-        payload = {
-            "model": target_model,
-            "messages": messages,
-            "stream": False,
-            "options": {
-                "temperature": temp,
-                "top_p": tp,
-                "repeat_penalty": 1.15,
-                "repeat_last_n": 128,
-                "num_ctx": self.num_ctx,
-                "num_predict": pred,
+        async def _call_api(effective_ctx: int) -> str:
+            payload = {
+                "model": target_model,
+                "messages": messages,
+                "stream": False,
+                "options": {
+                    "temperature": temp,
+                    "top_p": tp,
+                    "repeat_penalty": 1.15,
+                    "repeat_last_n": 128,
+                    "num_ctx": effective_ctx,
+                    "num_predict": pred,
+                }
             }
-        }
 
-        try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 res = await client.post(f"{self.base_url}/api/chat", json=payload)
                 if res.status_code == 404:
@@ -181,15 +184,26 @@ class OllamaService:
                 if not content:
                     raise OllamaEmptyResponseError()
                 return content
+
+        try:
+            return await _call_api(ctx_val)
+        except (OllamaConnectionError, OllamaModelNotFoundError, OllamaTimeoutError, OllamaEmptyResponseError):
+            raise
         except (httpx.ConnectError, httpx.ConnectTimeout):
             logger.warning(f"Failed to connect to Ollama at {self.base_url}")
             raise OllamaConnectionError()
         except httpx.ReadTimeout:
             logger.warning(f"Ollama inference timed out after {self.timeout_seconds}s")
             raise OllamaTimeoutError()
-        except OllamaError:
-            raise
         except Exception as e:
+            # If large context fails, try safe fallback once
+            if ctx_val > 32768:
+                fallback_ctx = 32768
+                logger.warning(f"Ollama generation failed with num_ctx={ctx_val} ({e}). Retrying with safe fallback num_ctx={fallback_ctx}...")
+                try:
+                    return await _call_api(fallback_ctx)
+                except Exception as fallback_err:
+                    logger.error(f"Fallback generation also failed: {fallback_err}")
             logger.error(f"Unexpected error during Ollama generation: {e}")
             raise OllamaError("Failed to generate response from local model.")
 
@@ -200,6 +214,7 @@ class OllamaService:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         num_predict: Optional[int] = None,
+        num_ctx: Optional[int] = None,
     ) -> AsyncIterator[str]:
         """Stream response tokens from the local Ollama model.
         
@@ -209,6 +224,7 @@ class OllamaService:
         target_model = await self._resolve_target_model(model)
         temp = temperature if temperature is not None else 0.1
         tp = top_p if top_p is not None else 0.9
+        ctx_val = num_ctx if num_ctx is not None else self.num_ctx
         pred = num_predict if num_predict is not None else self.num_predict
 
         payload = {
@@ -220,7 +236,7 @@ class OllamaService:
                 "top_p": tp,
                 "repeat_penalty": 1.15,
                 "repeat_last_n": 128,
-                "num_ctx": self.num_ctx,
+                "num_ctx": ctx_val,
                 "num_predict": pred,
             }
         }

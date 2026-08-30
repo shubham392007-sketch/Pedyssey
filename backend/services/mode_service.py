@@ -19,44 +19,51 @@ class ModeService:
         explain_level: Optional[str] = None
     ) -> Dict[str, Any]:
         """Returns retrieval depths, generation budgets, temperatures, and stage labels."""
+        from services.hardware_service import HardwareService
         mode_lower = (mode or "quick").lower()
+        limits = HardwareService.get_mode_limits(mode_lower)
         
         configs = {
             ResponseMode.QUICK.value: {
+                "num_ctx": limits.get("num_ctx", 32768),
+                "num_predict": limits.get("num_predict", 4096),
                 "top_k": 20,
                 "rerank_top_k": 5,
-                "num_predict": 1024,
                 "temperature": 0.10,
                 "stages": [
                     "Searching FAISS & BM25 indices...",
                     "Cross-Encoder neural reranking...",
                     "Synthesizing direct grounded answer..."
                 ],
-                "stage_label": "Retrieving & answering..."
+                "stage_label": "Retrieving from your document..."
             },
             ResponseMode.THINK.value: {
-                "top_k": 35,
-                "rerank_top_k": 8,
-                "num_predict": 2048,
+                "num_ctx": limits.get("num_ctx", 65536),
+                "num_predict": limits.get("num_predict", 12288),
+                "top_k": 40,
+                "rerank_top_k": 10,
                 "temperature": 0.15,
                 "stages": [
-                    "Understanding core question...",
-                    "Searching vector space & lexical indices...",
+                    "Understanding core question & query expansion...",
+                    "Searching vector space & lexical indices across sections...",
                     "Cross-referencing evidence & analyzing multi-step logic...",
                     "Formulating careful, reasoned synthesis..."
                 ],
                 "stage_label": "Thinking through the document..."
             },
             ResponseMode.DEEP_RESEARCH.value: {
-                "top_k": 50,
-                "rerank_top_k": 14,
-                "num_predict": 4096,
+                "num_ctx": limits.get("num_ctx", 65536),
+                "num_predict": limits.get("num_predict", 16384),
+                "top_k": 60,
+                "rerank_top_k": 18,
                 "temperature": 0.20,
                 "stages": [
-                    "Decomposing research query into facets...",
-                    "Searching complete document index across all pages...",
-                    "Cross-examining methodology, experiments & limitations...",
-                    "Synthesizing comprehensive structured research report..."
+                    "Understanding question & decomposing facets...",
+                    "Searching document (Multi-pass retrieval)...",
+                    "Analyzing evidence & grouping sections...",
+                    "Cross-checking sections & experimental setup...",
+                    "Generating comprehensive research report...",
+                    "Checking completeness & verifying citations..."
                 ],
                 "stage_label": "Researching your document..."
             },
@@ -280,17 +287,21 @@ Organize into categorized Markdown tables:
         if mode_lower == ResponseMode.DEEP_RESEARCH.value:
             return """
 ### MODE INSTRUCTION: DEEP RESEARCH MODE (COMPREHENSIVE MULTI-SECTION REPORT)
-- Conduct an in-depth investigation across the entire document context.
-- Organize the output with clear Markdown headers:
-  ## Executive Summary
-  ## Problem Statement & Context
-  ## Methodology & Technical Architecture
-  ## Experimental Setup & Quantitative Results
-  ## Strengths & Innovations
-  ## Limitations & Methodological Constraints
-  ## Critical Analysis & Conclusion
-- Include Markdown tables for benchmark comparisons or metrics where applicable.
-- Attribute every major factual assertion to specific page numbers.
+Conduct an exhaustive, publication-grade document research investigation strictly derived from the retrieved evidence across all pages.
+You MUST format your comprehensive answer with the following structured sections (include all that are relevant to the inquiry):
+## Executive Summary
+## Research Problem & Objectives
+## Theoretical Background
+## Methodology & Architecture
+## Experimental Setup & Datasets
+## Key Findings & Results (use Markdown tables for quantitative comparisons & benchmarks)
+## Strengths & Innovations
+## Limitations & Threats to Validity
+## Critical Observations
+## Conclusion
+## Sources & Verified Page Citations (list verified page numbers and corresponding concepts)
+
+Do not truncate or stop halfway; synthesize a complete, rigorous investigation grounded strictly in the document evidence.
 """
 
         if mode_lower == ResponseMode.STUDY.value:
